@@ -1,0 +1,14 @@
+# compile using mvn
+#FROM maven:3.5.2-jdk-8-alpine AS built
+#COPY pom.xml /tmp/
+#COPY src /tmp/src/
+#RUN mvn -f /tmp/pom.xml clean package
+# run java
+FROM openjdk:8
+#COPY --from=built /tmp/target/Management_Web_Service.jar app.jar
+ARG JAR_FILE=/target/Management_Web_Service.jar
+COPY ${JAR_FILE} app.jar
+# move des key
+COPY des.key des.key
+EXPOSE 9013
+ENTRYPOINT ["java","-jar","app.jar"]

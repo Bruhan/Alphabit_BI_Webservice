@@ -1,0 +1,12 @@
+package com.facility.management.usecases.wastage_movement.dto;
+
+import lombok.Getter;
+import lombok.Setter;
+
+@Getter
+@Setter
+public class WasteMovementOWCOutcomeDTO {
+    private String item;
+    private double qty;
+    private String uom;
+}
