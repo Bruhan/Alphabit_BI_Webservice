@@ -32,7 +32,6 @@ public class WastageDaoImpl implements WastageDao{
         List<DailyWastageDetailsDET> dailyWastageDetailsDETList = new ArrayList<>();
         try {
             for(AddWastageRequestDTO wastageRequestDTO: wastageRequestDTOList) {
-                DailyWastageDetailsDET dailyWastageDetailsDET = new DailyWastageDetailsDET();
                 String sql = "  INSERT INTO "+ plant +"_DAILY_WASTAGE_DETAILS_DET (PLANT, PROJECTNO, WASTAGE_TYPE, WASTAGE_QTY, WASTAGE_UOM, SUPERVISOR_CODE, DATE, CRAT, CRBY) " +
                         " OUTPUT INSERTED.PLANT, INSERTED.ID, INSERTED.PROJECTNO, INSERTED.WASTAGE_TYPE, INSERTED.WASTAGE_QTY, INSERTED.WASTAGE_UOM, INSERTED.SUPERVISOR_CODE, INSERTED.DATE, INSERTED.CRAT, INSERTED.CRBY" +
                         "  VALUES (:plant, :projectNo, :wastageType, :wastageQty, :wastageUom, :supervisorCode, :date, :crAt, :crBy)";
@@ -53,22 +52,25 @@ public class WastageDaoImpl implements WastageDao{
                 Object[] record =  (Object[]) query.uniqueResult();
 
                 if(record != null) {
-                    dailyWastageDetailsDET = new DailyWastageDetailsDET();
-                    dailyWastageDetailsDET.setPlant((String) record[0]);
-                    dailyWastageDetailsDET.setId((int) record[1]);
-                    dailyWastageDetailsDET.setProjectNo((String) record[2]);
-                    dailyWastageDetailsDET.setWastageType((String) record[3]);
-                    dailyWastageDetailsDET.setWastageQty((double) record[4]);
-                    dailyWastageDetailsDET.setWastageUOM((String) record[5]);
-                    dailyWastageDetailsDET.setSupervisorCode((String) record[6]);
-                    dailyWastageDetailsDET.setDate(new SimpleDateFormat("dd-MM-yyyy").format((java.util.Date) record[7]));
-                    dailyWastageDetailsDET.setCrAt((String) record[8]);
-                    dailyWastageDetailsDET.setCrBy((String) record[9]);
+                    DailyWastageDetailsDET dailyWastageDetailsDET = DailyWastageDetailsDET.builder()
+                            .plant((String) record[0])
+                            .id((int) record[1])
+                            .projectNo((String) record[2])
+                            .wastageType((String) record[3])
+                            .wastageQty((double) record[4])
+                            .wastageUOM((String) record[5])
+                            .supervisorCode((String) record[6])
+                            .date(new SimpleDateFormat("dd-MM-yyyy").format((java.util.Date) record[7]))
+                            .crAt((String) record[8])
+                            .crBy((String) record[9])
+                            .build();
+
+                    dailyWastageDetailsDETList.add(dailyWastageDetailsDET);
                 }
 
                 session.getTransaction().commit();
 
-                dailyWastageDetailsDETList.add(dailyWastageDetailsDET);
+
             }
 
 
@@ -116,6 +118,44 @@ public class WastageDaoImpl implements WastageDao{
             session.close();
         }
         return dailyWastageDetailsHDR;
+    }
+
+    @Override
+    public DailyWastageDetailsDET getDailyWastageDetailsDETById(String plant, String projectNo, int id) {
+        Session session = sessionFactory.openSession();
+        DailyWastageDetailsDET dailyWastageDetailsDET = null;
+        try {
+            String sql = "SELECT ID, PLANT, PROJECTNO, WASTAGE_TYPE, WASTAGE_QTY, WASTAGE_UOM, SUPERVISOR_CODE, DATE FROM " + plant +
+                    "_DAILY_WASTAGE_DETAILS_DET WHERE PROJECTNO = :projectNo AND ID = :id AND PLANT = :plant";
+
+            Query query = session.createSQLQuery(sql);
+
+            query.setParameter("plant", plant);
+            query.setParameter("projectNo", projectNo);
+            query.setParameter("id", id);
+
+            Object[] row = (Object[]) query.uniqueResult();
+
+            if(row != null) {
+                dailyWastageDetailsDET = DailyWastageDetailsDET.builder()
+                        .id((int) row[0])
+                        .plant((String) row[1])
+                        .projectNo((String) row[2])
+                        .wastageType((String) row[3])
+                        .wastageQty((double) row[4])
+                        .wastageUOM((String) row[5])
+                        .supervisorCode((String) row[6])
+                        .date(new SimpleDateFormat("dd-MM-yyyy").format((java.util.Date) row[7]))
+                        .build();
+            }
+
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            session.close();
+        }
+
+        return dailyWastageDetailsDET;
     }
 
     @Override
@@ -169,6 +209,35 @@ public class WastageDaoImpl implements WastageDao{
             query.setParameter("upBy", null);
             query.setParameter("plant", plant);
             query.setParameter("id", dailyWastageDetailsHDR.getId());
+
+            result = query.executeUpdate();
+            session.getTransaction().commit();
+        } catch (Exception ex) {
+            session.getTransaction().rollback();
+            throw new RuntimeException(ex);
+        } finally {
+            session.close();
+        }
+        return result;
+    }
+
+    @Override
+    public Integer updateDailyWastageDet(String plant, DailyWastageDetailsDET oldDailyWastageDetails) {
+        Session session = sessionFactory.openSession();
+        Integer result = 0;
+        try {
+            String sql = "UPDATE " + plant + "_DAILY_WASTAGE_DETAILS_DET SET WASTAGE_TYPE = :wastageType, WASTAGE_QTY = :wastageQty, " +
+                    "WASTAGE_UOM = :wastageUom, UPAT= :upAt, UPBY = :upBy WHERE PLANT = :plant AND ID = :id";
+            session.beginTransaction();
+            Query query = session.createSQLQuery(sql);
+
+            query.setParameter("wastageType", oldDailyWastageDetails.getWastageType());
+            query.setParameter("wastageQty", oldDailyWastageDetails.getWastageQty());
+            query.setParameter("wastageUom", oldDailyWastageDetails.getWastageUOM());
+            query.setParameter("upAt", oldDailyWastageDetails.getUpAt());
+            query.setParameter("upBy", oldDailyWastageDetails.getUpBy());
+            query.setParameter("plant", plant);
+            query.setParameter("id", oldDailyWastageDetails.getId());
 
             result = query.executeUpdate();
             session.getTransaction().commit();
@@ -701,6 +770,43 @@ public class WastageDaoImpl implements WastageDao{
     }
 
     @Override
+    public Integer saveMovedOWCOutcomeDet(String plant, MoveOWCOutcomeRequest moveOWCOutcomeRequest) {
+        Session session = sessionFactory.openSession();
+        Integer result = 0;
+        try {
+            for(MoveOWCOutcomeProductDTO moveOWCOutcomeProductDTO: moveOWCOutcomeRequest.getMoveOWCOutcomeProducts()) {
+                String sql = "INSERT INTO " + plant + "_MOVED_OWCOUTCOMEDET (PLANT, PROJECTNO, TYPE, DATE, QTY, UOM, PRODUCT," +
+                        "EMPCODE, CRAT, CRBY) VALUES (:plant, :projectNo, :type, :date, :qty, :uom, :product, :empCode, :crAt, " +
+                        ":crBy)";
+
+                session.beginTransaction();
+                DateTimeCalc dateTimeCalc = new DateTimeCalc();
+
+                Query query = session.createSQLQuery(sql);
+                query.setParameter("plant", plant);
+                query.setParameter("projectNo", moveOWCOutcomeRequest.getProjectNo());
+                query.setParameter("type", moveOWCOutcomeProductDTO.getMoveOWCType().name());
+                query.setParameter("product", moveOWCOutcomeProductDTO.getProduct());
+                query.setParameter("date", dateTimeCalc.getTodayDMYDate());
+                query.setParameter("qty", moveOWCOutcomeProductDTO.getQty());
+                query.setParameter("uom", moveOWCOutcomeProductDTO.getUom());
+                query.setParameter("empCode", moveOWCOutcomeRequest.getEmpCode());
+                query.setParameter("crAt", dateTimeCalc.getTodayDateTime());
+                query.setParameter("crBy", moveOWCOutcomeRequest.getEmpCode());
+
+                result = query.executeUpdate();
+                session.getTransaction().commit();
+            }
+        } catch (Exception ex) {
+            session.getTransaction().rollback();
+            throw new RuntimeException(ex);
+        } finally {
+            session.close();
+        }
+        return result;
+    }
+
+    @Override
     public Integer saveOWCOutcomeDet(String plant, OWCOutcomeDET owcOutcomeDET) {
         Session session = sessionFactory.openSession();
         Integer result = 0;
@@ -838,6 +944,114 @@ public class WastageDaoImpl implements WastageDao{
             session.close();
         }
 
+        return result;
+    }
+
+    @Override
+    public OWCOutcomeProductDET getOWCOutcomeProductDET(String plant, String projectNo, String product) {
+        Session session = sessionFactory.openSession();
+        OWCOutcomeProductDET owcOutcomeProductDET = null;
+        try {
+            String sql = "SELECT TOP 1 PLANT, ID, PROJECTNO, PRODUCT, QTY, UOM, PROCESSED_QTY, PENDING_QTY, CRAT, CRBY, UPAT, UPBY " +
+                    " FROM "+ plant +"_OWCOUTCOMEPRODUCTDET WHERE PLANT = :plant AND PROJECTNO = :projectNo AND PRODUCT = :product";
+
+            Query query = session.createSQLQuery(sql);
+
+            query.setParameter("plant", plant);
+            query.setParameter("projectNo", projectNo);
+            query.setParameter("product", product);
+
+            Object[] row = (Object[]) query.uniqueResult();
+
+            if(row != null) {
+                owcOutcomeProductDET = OWCOutcomeProductDET.builder()
+                        .plant((String) row[0])
+                        .id((int) row[1])
+                        .projectNo((String) row[2])
+                        .product((String) row[3])
+                        .qty((double) row[4])
+                        .uom((String) row[5])
+                        .processedQty((double) row[6])
+                        .pendingQty((double) row[7])
+                        .crAt((String) row[8])
+                        .crBy((String) row[9])
+                        .upAt((String) row[10])
+                        .upBy((String) row[11])
+                        .build();
+            }
+
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            session.close();
+        }
+        return owcOutcomeProductDET;
+    }
+
+    @Override
+    public Integer updateOWCOutcomeProductDet(String plant, OWCOutcomeProductDET existingOWCOutcomeProductDET) {
+        Session session = sessionFactory.openSession();
+        Integer result = 0;
+        try {
+            String sql = "UPDATE " + plant + "_OWCOUTCOMEPRODUCTDET SET QTY = :qty, UOM = :uom, " +
+                    "PROCESSED_QTY = :processedQty, PENDING_QTY = :pendingQty, UPAT = :upAt, UPBY = :upBy WHERE PLANT = :plant AND PROJECTNO = :projectNo AND PRODUCT = :product";
+
+            session.beginTransaction();
+            Query query = session.createSQLQuery(sql);
+            DateTimeCalc dateTimeCalc = new DateTimeCalc();
+            query.setParameter("plant", plant);
+            query.setParameter("qty", existingOWCOutcomeProductDET.getQty());
+            query.setParameter("uom", existingOWCOutcomeProductDET.getUom());
+            query.setParameter("processedQty", existingOWCOutcomeProductDET.getProcessedQty());
+            query.setParameter("pendingQty", existingOWCOutcomeProductDET.getPendingQty());
+            query.setParameter("upAt", dateTimeCalc.getTodayDateTime());
+            query.setParameter("upBy", existingOWCOutcomeProductDET.getUpBy());
+            query.setParameter("projectNo", existingOWCOutcomeProductDET.getProjectNo());
+            query.setParameter("product", existingOWCOutcomeProductDET.getProduct());
+
+            result = query.executeUpdate();
+            session.getTransaction().commit();
+        } catch (Exception ex) {
+            session.getTransaction().rollback();
+            throw new RuntimeException(ex);
+        } finally {
+            session.close();
+        }
+
+        return result;
+    }
+
+    @Override
+    public Integer saveOWCOutcomeProductDet(String plant, OWCOutcomeProductDET owcOutcomeProductDET) {
+        Integer result = 0;
+        Session session = sessionFactory.openSession();
+        try {
+            String sql = "INSERT INTO " + plant + "_OWCOUTCOMEPRODUCTDET (PLANT, PROJECTNO, PRODUCT, QTY, UOM, PROCESSED_QTY, PENDING_QTY, CRAT, CRBY) " +
+                    " VALUES (:plant, :projectNo, :product, :qty, :uom, :processedQty, :pendingQty, :crAt, :crBy)";
+
+            session.beginTransaction();
+            Query query = session.createSQLQuery(sql);
+            DateTimeCalc dateTimeCalc = new DateTimeCalc();
+
+            query.setParameter("plant", plant);
+            query.setParameter("projectNo", owcOutcomeProductDET.getProjectNo());
+            query.setParameter("product", owcOutcomeProductDET.getProduct());
+            query.setParameter("qty", owcOutcomeProductDET.getQty());
+            query.setParameter("uom", owcOutcomeProductDET.getUom());
+            query.setParameter("processedQty", owcOutcomeProductDET.getProcessedQty());
+            query.setParameter("pendingQty", owcOutcomeProductDET.getPendingQty());
+            query.setParameter("crAt", dateTimeCalc.getTodayDateTime());
+            query.setParameter("crBy", null);
+
+            result = query.executeUpdate();
+            session.getTransaction().commit();
+
+        } catch (Exception ex) {
+            session.getTransaction().rollback();
+            throw new RuntimeException(ex);
+        } finally {
+            session.close();
+        }
         return result;
     }
 
@@ -1444,6 +1658,30 @@ public class WastageDaoImpl implements WastageDao{
         return recordExists;
     }
 
+    @Override
+    public boolean checkOWCOutcomeProductDET(String plant, String projectNo, String product) {
+        boolean recordExists = false;
+        Session session = sessionFactory.openSession();
+        try {
+            String sql = "SELECT COUNT(*) FROM " + plant + "_OWCOUTCOMEPRODUCTDET WHERE PLANT = :plant AND PROJECTNO = :projectNo AND PRODUCT = :product";
+            Query query = session.createSQLQuery(sql);
+
+            query.setParameter("projectNo", projectNo);
+            query.setParameter("plant", plant);
+            query.setParameter("product", product);
+
+            Long count = ((Number) query.uniqueResult()).longValue();
+
+            if (count > 0) {
+                recordExists = true;
+            }
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            session.close();
+        }
+        return recordExists;
+    }
 
 
     @Override
@@ -1485,7 +1723,7 @@ public class WastageDaoImpl implements WastageDao{
         Session session = sessionFactory.openSession();
         List<OWCMachineDTO> owcMachineDTOList = null;
         try {
-            String sql = "SELECT PROJECTNO, MACHINE_ID, (SELECT DESCRIPTION FROM " + plant +"_OWC_MACHINE_MST WHERE " +
+            String sql = "SELECT ID, PROJECTNO, MACHINE_ID, (SELECT DESCRIPTION FROM " + plant +"_OWC_MACHINE_MST WHERE " +
                     "MACHINE_ID = owcDet.MACHINE_ID) AS MACHINE_NAME, DATE, QTY, UOM, EMPCODE FROM " + plant + "_OWCDET " +
                     "AS owcDet WHERE PROJECTNO = :projectNo AND PLANT = :plant";
             Query query = session.createSQLQuery(sql);
@@ -1498,13 +1736,14 @@ public class WastageDaoImpl implements WastageDao{
 
             for(Object[] row: rows) {
                 OWCMachineDTO owcMachineDTO = new OWCMachineDTO();
-                owcMachineDTO.setProjectNo((String) row[0]);
-                owcMachineDTO.setMachineId((String) row[1]);
-                owcMachineDTO.setMachineName((String) row[2]);
-                owcMachineDTO.setDate(new SimpleDateFormat("dd-MM-yyyy").format((java.util.Date) row[3]));
-                owcMachineDTO.setQty((double) row[4]);
-                owcMachineDTO.setUom((String) row[5]);
-                owcMachineDTO.setEmpCode((String) row[6]);
+                owcMachineDTO.setId((Integer) row[0]);
+                owcMachineDTO.setProjectNo((String) row[1]);
+                owcMachineDTO.setMachineId((String) row[2]);
+                owcMachineDTO.setMachineName((String) row[3]);
+                owcMachineDTO.setDate(new SimpleDateFormat("dd-MM-yyyy").format((java.util.Date) row[4]));
+                owcMachineDTO.setQty((double) row[5]);
+                owcMachineDTO.setUom((String) row[6]);
+                owcMachineDTO.setEmpCode((String) row[7]);
 
                 owcMachineDTOList.add(owcMachineDTO);
             }
@@ -1515,6 +1754,39 @@ public class WastageDaoImpl implements WastageDao{
             session.close();
         }
         return owcMachineDTOList;
+    }
+
+    @Override
+    public List<OWCMachineProductDTO> getOWCMachineProducts(String plant, String projectNo, int detId) {
+        Session session = sessionFactory.openSession();
+        List<OWCMachineProductDTO> owcMachineProductDTOList = null;
+        try {
+            String sql = "SELECT OWC.PRODUCT, IT.ITEMDESC, OWC.QTY, OWC.UOM FROM " + plant + "_OWCPRODUCTDET OWC LEFT JOIN " +
+                    plant + "_ITEMMST IT ON OWC.PRODUCT = IT.ITEM WHERE OWC.PROJECTNO = :projectNo AND OWC.DET_ID = :detId AND OWC.PLANT = :plant";
+            Query query = session.createSQLQuery(sql);
+            query.setParameter("projectNo", projectNo);
+            query.setParameter("detId", detId);
+            query.setParameter("plant", plant);
+            List<Object[]> rows = query.list();
+
+            owcMachineProductDTOList = new ArrayList<>();
+
+            for(Object[] row: rows) {
+                OWCMachineProductDTO owcMachineProductDTO = new OWCMachineProductDTO();
+                owcMachineProductDTO.setItem((String) row[0]);
+                owcMachineProductDTO.setProductName((String) row[1]);
+                owcMachineProductDTO.setQty((double) row[2]);
+                owcMachineProductDTO.setUom((String) row[3]);
+
+                owcMachineProductDTOList.add(owcMachineProductDTO);
+            }
+
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            session.close();
+        }
+        return owcMachineProductDTOList;
     }
 
     @Override
@@ -1556,11 +1828,49 @@ public class WastageDaoImpl implements WastageDao{
     }
 
     @Override
+    public List<MovedOWCOutcomeDTO> getMovedOWCOutcomeSummary(String plant, String projectNo) {
+        Session session = sessionFactory.openSession();
+        List<MovedOWCOutcomeDTO> movedOWCOutcomeDTOList = null;
+        try {
+            String sql = "SELECT OWC.PROJECTNO, OWC.TYPE, OWC.DATE, OWC.QTY, OWC.UOM, OWC.PRODUCT, IT.ITEMDESC FROM " + plant + "_MOVED_OWCOUTCOMEDET OWC " +
+                    "LEFT JOIN " + plant + "_ITEMMST IT ON OWC.PRODUCT = IT.ITEM WHERE OWC.PLANT = :plant AND OWC.PROJECTNO = :projectNo";
+
+            Query query = session.createSQLQuery(sql);
+
+            query.setParameter("plant", plant);
+            query.setParameter("projectNo", projectNo);
+
+            List<Object[]> rows = query.list();
+            movedOWCOutcomeDTOList = new ArrayList<>();
+
+            for(Object[] row: rows) {
+                MovedOWCOutcomeDTO movedOWCOutcomeDTO = new MovedOWCOutcomeDTO();
+                movedOWCOutcomeDTO.setProjectNo((String) row[0]);
+                movedOWCOutcomeDTO.setType((String) row[1]);
+                movedOWCOutcomeDTO.setDate(new SimpleDateFormat("dd-MM-yyyy").format((java.util.Date) row[2]));
+                movedOWCOutcomeDTO.setQty((double) row[3]);
+                movedOWCOutcomeDTO.setUom((String) row[4]);
+                movedOWCOutcomeDTO.setItem((String) row[5]);
+                movedOWCOutcomeDTO.setProductName((String) row[6]);
+
+                movedOWCOutcomeDTOList.add(movedOWCOutcomeDTO);
+            }
+
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            session.close();
+        }
+
+        return movedOWCOutcomeDTOList;
+    }
+
+    @Override
     public List<WastageDTO> getWastageSummary(String plant, String projectNo, String date) {
         Session session = sessionFactory.openSession();
         List<WastageDTO> wastageDTOList = null;
         try {
-            String sql = "SELECT PROJECTNO, WASTAGE_TYPE, WASTAGE_QTY, WASTAGE_UOM, SUPERVISOR_CODE, DATE FROM " + plant + "_DAILY_WASTAGE_DETAILS_DET " +
+            String sql = "SELECT PROJECTNO, WASTAGE_TYPE, WASTAGE_QTY, WASTAGE_UOM, SUPERVISOR_CODE, DATE, ID FROM " + plant + "_DAILY_WASTAGE_DETAILS_DET " +
                     "WHERE PROJECTNO = :projectNo AND PLANT = :plant AND (DATE = :date OR :date IS NULL)";
             Query query = session.createSQLQuery(sql);
 
@@ -1586,6 +1896,7 @@ public class WastageDaoImpl implements WastageDao{
                 wastageDTO.setWastageUom((String) row[3]);
                 wastageDTO.setSupervisorCode((String) row[4]);
                 wastageDTO.setDate(new SimpleDateFormat("dd-MM-yyyy").format((java.util.Date) row[5]));
+                wastageDTO.setId((int) row[6]);
 
                 wastageDTOList.add(wastageDTO);
             }
@@ -1636,11 +1947,16 @@ public class WastageDaoImpl implements WastageDao{
         List<RejectedWastageSummaryDTO> rejectedWastageSummaryDTOList = null;
         try {
             String sql = "SELECT PROJECTNO, DATE, QTY, UOM, WASTAGE_TYPE FROM " + plant + "_REJECTED_WASTE_DET WHERE PLANT = :plant " +
-                    "AND PROJECTNO = :projectNo";
+                    "AND PROJECTNO = :projectNo AND WASTAGE_TYPE NOT IN :wastageTypes";
             Query query = session.createSQLQuery(sql);
+
+            List<String> notIncludedWastageTypes = new ArrayList<>();
+            notIncludedWastageTypes.add(WastageType.GARDEN_WASTE.name());
+            notIncludedWastageTypes.add(WastageType.DEBRIS_WASTE.name());
 
             query.setParameter("projectNo", projectNo);
             query.setParameter("plant", plant);
+            query.setParameter("wastageTypes", notIncludedWastageTypes);
 
             List<Object[]> rows = query.list();
             rejectedWastageSummaryDTOList = new ArrayList<>();
@@ -1878,8 +2194,8 @@ public class WastageDaoImpl implements WastageDao{
         List<OWCOutcomeProductDTO> owcOutcomeProductDTOList = null;
         try{
             String sql = "SELECT (SELECT ITEMDESC FROM " + plant + "_ITEMMST WHERE " +
-                    "ITEM = OWC.PRODUCT) AS PRODUCTNAME, SUM(QTY) AS QTY, UOM, OWC.PRODUCT AS PRODUCT FROM "+ plant +"_OWCOUTCOMEDET OWC " +
-                    "WHERE PROJECTNO = :projectNo AND PLANT = :plant GROUP BY OWC.PRODUCT, UOM";
+                    "ITEM = OWC.PRODUCT) AS PRODUCTNAME, PENDING_QTY AS QTY, UOM, OWC.PRODUCT AS PRODUCT FROM "+ plant +"_OWCOUTCOMEPRODUCTDET OWC " +
+                    "WHERE PROJECTNO = :projectNo AND PLANT = :plant";
             Query query = session.createSQLQuery(sql);
 
             query.setParameter("projectNo", projectNo);

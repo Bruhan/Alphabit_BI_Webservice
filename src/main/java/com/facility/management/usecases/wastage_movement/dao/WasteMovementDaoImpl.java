@@ -1,6 +1,8 @@
 package com.facility.management.usecases.wastage_movement.dao;
 
 import com.facility.management.helpers.common.calc.DateTimeCalc;
+import com.facility.management.persistence.models.WasteMovementDET;
+import com.facility.management.usecases.product_request.enums.LNStatus;
 import com.facility.management.usecases.wastage_movement.dto.*;
 import com.facility.management.usecases.wastage_movement.enums.WastageType;
 import org.hibernate.Session;
@@ -28,8 +30,8 @@ public class WasteMovementDaoImpl implements WasteMovementDao{
         String detInorganicsql = null;
         String detOWCsql = null;
         try {
-            hdrsql = "INSERT INTO " + plant + "_WASTE_MOVEMENT_HDR (PLANT, PROJECTNO, DATE, VEHICLEID, DRIVERNO, FINAL_DESTINATION, REMARKS, CRAT, CRBY) " +
-                    "VALUES(:plant, :projectNo, :date, :vehicleId, :driverNo, :finalDestination, :remarks, :crAt, :crBy); SELECT SCOPE_IDENTITY();";
+            hdrsql = "INSERT INTO " + plant + "_WASTE_MOVEMENT_HDR (PLANT, PROJECTNO, DATE, VEHICLEID, DRIVERNO, FINAL_DESTINATION, REMARKS, DC_NO, VEHICLE_TYPE, CRAT, CRBY) " +
+                    "VALUES(:plant, :projectNo, :date, :vehicleId, :driverNo, :finalDestination, :remarks, :dcNo, :vehicleType, :crAt, :crBy); SELECT SCOPE_IDENTITY();";
             session.beginTransaction();
             DateTimeCalc dateTimeCalc = new DateTimeCalc();
             Query query = session.createSQLQuery(hdrsql);
@@ -40,6 +42,8 @@ public class WasteMovementDaoImpl implements WasteMovementDao{
             query.setParameter("driverNo", wasteMovementRequestDTO.getDriverNo());
             query.setParameter("finalDestination", wasteMovementRequestDTO.getDestination());
             query.setParameter("remarks", wasteMovementRequestDTO.getRemarks());
+            query.setParameter("dcNo", wasteMovementRequestDTO.getDeliveryChallanNo());
+            query.setParameter("vehicleType", wasteMovementRequestDTO.getVehicleType());
             query.setParameter("crAt", dateTimeCalc.getTodayDateTime());
             query.setParameter("crBy", null);
 
@@ -120,11 +124,108 @@ public class WasteMovementDaoImpl implements WasteMovementDao{
     }
 
     @Override
+    public Integer saveWasteMovementDET(String plant, String projectNo, Integer hdrId, WasteMovementDETDTO wasteMovementDETDTO) {
+        Session session = sessionFactory.openSession();
+        Integer detId;
+        try {
+            String detsql = "INSERT INTO " + plant + "_WASTE_MOVEMENT_DET (PLANT, PROJECTNO, CUSTOMERID, CUSTOMERNAME, HDRID, DESTINATION, DESTINATION_TYPE, WASTAGE_TYPE, QTY, UOM, CRAT, CRBY) " +
+                    "VALUES (:plant, :projectNo, :customerId, :customerName, :hdrId, :destination, :destinationType, :wastageType, :qty, :uom, :crAt, :crBy); SELECT SCOPE_IDENTITY();";
+            session.beginTransaction();
+            DateTimeCalc dateTimeCalc = new DateTimeCalc();
+            Query query1 = session.createSQLQuery(detsql);
+            query1.setParameter("plant", plant);
+            query1.setParameter("projectNo", projectNo);
+            query1.setParameter("customerId", wasteMovementDETDTO.getCustomerId());
+            query1.setParameter("customerName", wasteMovementDETDTO.getCustomerName());
+            query1.setParameter("hdrId", hdrId);
+            query1.setParameter("destination", wasteMovementDETDTO.getDestination());
+            query1.setParameter("destinationType", wasteMovementDETDTO.getDestinationType());
+            query1.setParameter("wastageType", wasteMovementDETDTO.getWastageType().toString());
+            query1.setParameter("qty", wasteMovementDETDTO.getQty());
+            query1.setParameter("uom", wasteMovementDETDTO.getUom());
+            query1.setParameter("crAt", dateTimeCalc.getTodayDateTime());
+            query1.setParameter("crBy", null);
+
+            detId = ((Number) query1.uniqueResult()).intValue();
+            session.getTransaction().commit();
+        } catch (Exception ex) {
+            session.getTransaction().rollback();
+            throw new RuntimeException(ex);
+        } finally {
+            session.close();
+        }
+
+        return detId;
+    }
+
+    @Override
+    public Integer saveWasteMovementInorganicProductDET(String plant, String projectNo, Integer hdrId, Integer detId, WasteMovementInorganicProductDTO wasteMovementInorganicProductDTO) {
+        Session session = sessionFactory.openSession();
+        Integer result = 0;
+        try {
+            String detInorganicsql = "INSERT INTO " + plant + "_WASTE_MOVEMENT_INORGANIC_PRODUCT (PLANT, PROJECTNO, DETID, HDRID, ITEM, QTY, UOM, CRAT, CRBY) " +
+                    "VALUES (:plant, :projectNo, :detId, :hdrId, :item, :qty, :uom, :crAt, :crBy)";
+            session.beginTransaction();
+            DateTimeCalc dateTimeCalc = new DateTimeCalc();
+            Query query2 = session.createSQLQuery(detInorganicsql);
+            query2.setParameter("plant", plant);
+            query2.setParameter("projectNo", projectNo);
+            query2.setParameter("detId", detId);
+            query2.setParameter("hdrId", hdrId);
+            query2.setParameter("item", wasteMovementInorganicProductDTO.getItem());
+            query2.setParameter("qty", wasteMovementInorganicProductDTO.getQty());
+            query2.setParameter("uom", wasteMovementInorganicProductDTO.getUom());
+            query2.setParameter("crAt", dateTimeCalc.getTodayDateTime());
+            query2.setParameter("crBy", null);
+
+            result = query2.executeUpdate();
+            session.getTransaction().commit();
+        } catch (Exception ex) {
+            session.getTransaction().rollback();
+            throw new RuntimeException(ex);
+        }  finally {
+            session.close();
+        }
+        return result;
+    }
+
+    @Override
+    public Integer saveWasteMovementOWCOutcomeDET(String plant, String projectNo, Integer hdrId, Integer detId, WasteMovementOWCOutcomeDTO wasteMovementOWCOutcomeDTO) {
+        Session session = sessionFactory.openSession();
+        Integer result = 0;
+        try {
+            String detOWCsql = "INSERT INTO " + plant + "_WASTE_MOVEMENT_OWC_PRODUCT (PLANT, PROJECTNO, DETID, HDRID, ITEM, QTY, UOM, CRAT, CRBY) " +
+                    "VALUES (:plant, :projectNo, :detId, :hdrId, :item, :qty, :uom, :crAt, :crBy)";
+            session.beginTransaction();
+            DateTimeCalc dateTimeCalc = new DateTimeCalc();
+            Query query2 = session.createSQLQuery(detOWCsql);
+            query2.setParameter("plant", plant);
+            query2.setParameter("projectNo", projectNo);
+            query2.setParameter("detId", detId);
+            query2.setParameter("hdrId", hdrId);
+            query2.setParameter("item", wasteMovementOWCOutcomeDTO.getItem());
+            query2.setParameter("qty", wasteMovementOWCOutcomeDTO.getQty());
+            query2.setParameter("uom", wasteMovementOWCOutcomeDTO.getUom());
+            query2.setParameter("crAt", dateTimeCalc.getTodayDateTime());
+            query2.setParameter("crBy", null);
+
+            result = query2.executeUpdate();
+            session.getTransaction().commit();
+        } catch (Exception ex) {
+            session.getTransaction().rollback();
+            throw new RuntimeException(ex);
+        }  finally {
+            session.close();
+        }
+        return result;
+    }
+
+    @Override
     public List<WasteMovementDTO> getWastageMovementSummary(String plant, String projectNo) {
         Session session = sessionFactory.openSession();
         List<WasteMovementDTO> wasteMovementDTOList = null;
         try {
-            String sql = "SELECT DATE, VEHICLEID, DRIVERNO, FINAL_DESTINATION FROM " + plant + "_WASTE_MOVEMENT_HDR" +
+            String sql = "SELECT DATE, VEHICLEID, DRIVERNO, FINAL_DESTINATION, REMARKS, DC_NO, VEHICLE_TYPE, ID FROM " + plant + "_WASTE_MOVEMENT_HDR" +
                     "  WHERE PROJECTNO = :projectNo AND PLANT = :plant";
             Query query = session.createSQLQuery(sql);
 
@@ -141,6 +242,10 @@ public class WasteMovementDaoImpl implements WasteMovementDao{
                 wasteMovementDTO.setVehicleNo((String) row[1]);
                 wasteMovementDTO.setDriverNo((String) row[2]);
                 wasteMovementDTO.setFinalDestination((String) row[3]);
+                wasteMovementDTO.setRemarks((String) row[4]);
+                wasteMovementDTO.setDeliveryChallanNo((String) row[5]);
+                wasteMovementDTO.setVehicleType((String) row[6]);
+                wasteMovementDTO.setId((Integer) row[7]);
 
                 wasteMovementDTOList.add(wasteMovementDTO);
             }
@@ -151,5 +256,257 @@ public class WasteMovementDaoImpl implements WasteMovementDao{
             session.close();
         }
         return wasteMovementDTOList;
+    }
+
+    @Override
+    public WasteMovementDTO getWastageMovementSummaryById(String plant, String projectNo, Integer id) {
+        Session session = sessionFactory.openSession();
+        WasteMovementDTO wasteMovementDTO = null;
+        try {
+            String sql = "SELECT DATE, VEHICLEID, DRIVERNO, FINAL_DESTINATION, REMARKS, DC_NO, VEHICLE_TYPE, ID FROM " + plant + "_WASTE_MOVEMENT_HDR" +
+                    " WHERE PROJECTNO = :projectNo AND PLANT = :plant AND ID = :id";
+            Query query = session.createSQLQuery(sql);
+
+            query.setParameter("projectNo", projectNo);
+            query.setParameter("plant", plant);
+            query.setParameter("id", id);
+
+            Object[] row = (Object[]) query.uniqueResult();
+
+            if(row != null) {
+                wasteMovementDTO = new WasteMovementDTO();
+                wasteMovementDTO.setDate(row[0] != null ? new SimpleDateFormat("dd-MM-yyyy").format((java.util.Date) row[0]) : "");
+                wasteMovementDTO.setVehicleNo((String) row[1]);
+                wasteMovementDTO.setDriverNo((String) row[2]);
+                wasteMovementDTO.setFinalDestination((String) row[3]);
+                wasteMovementDTO.setRemarks((String) row[4]);
+                wasteMovementDTO.setDeliveryChallanNo((String) row[5]);
+                wasteMovementDTO.setVehicleType((String) row[6]);
+                wasteMovementDTO.setId((Integer) row[7]);
+            }
+
+
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            session.close();
+        }
+        return wasteMovementDTO;
+    }
+
+    @Override
+    public List<WasteMovementDETOutDTO> getWasteMovementDET(String plant, String projectNo, Integer hdrId) {
+        Session session = sessionFactory.openSession();
+        List<WasteMovementDETOutDTO> wasteMovementDETList = null;
+        try {
+            String sql = "SELECT CUSTOMERID, CUSTOMERNAME, DESTINATION, DESTINATION_TYPE, WASTAGE_TYPE, QTY, UOM, ID FROM " + plant + "_WASTE_MOVEMENT_DET" +
+                    "  WHERE PROJECTNO = :projectNo AND HDRID = :hdrId AND PLANT = :plant";
+            Query query = session.createSQLQuery(sql);
+
+            query.setParameter("projectNo", projectNo);
+            query.setParameter("plant", plant);
+            query.setParameter("hdrId", hdrId);
+
+            List<Object[]> rows = query.list();
+
+            wasteMovementDETList = new ArrayList<>();
+            for(Object[] row: rows) {
+                WasteMovementDETOutDTO wasteMovementDET = new WasteMovementDETOutDTO();
+                wasteMovementDET.setCustomerId((String) row[0]);
+                wasteMovementDET.setCustomerName((String) row[1]);
+                wasteMovementDET.setDestination((String) row[2]);
+                wasteMovementDET.setDestinationType((String) row[3]);
+                wasteMovementDET.setWastageType((row[4] != null ? WastageType.valueOf((String) row[4]) : null));
+                wasteMovementDET.setQty((double) row[5]);
+                wasteMovementDET.setUom((String) row[6]);
+                wasteMovementDET.setId((Integer) row[7]);
+
+                wasteMovementDETList.add(wasteMovementDET);
+            }
+
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            session.close();
+        }
+
+        return wasteMovementDETList;
+    }
+
+    @Override
+    public List<WasteMovementInorganicProductOutDTO> getWasteMovementInorganicProducts(String plant, String projectNo, Integer hdrId, Integer detId) {
+        Session session = sessionFactory.openSession();
+        List<WasteMovementInorganicProductOutDTO> wasteMovementInorganicProductOutDTOList = null;
+        try {
+            String sql = "SELECT IT.ITEMDESC, WM.ITEM, WM.QTY, WM.UOM, WM.ID FROM " + plant + "_WASTE_MOVEMENT_INORGANIC_PRODUCT WM LEFT JOIN " + plant + "_ITEMMST IT " +
+                    "ON IT.ITEM = WM.ITEM WHERE WM.PROJECTNO = :projectNo AND WM.PLANT = :plant AND WM.HDRID = :hdrId AND WM.DETID = :detId";
+
+            Query query = session.createSQLQuery(sql);
+            query.setParameter("projectNo", projectNo);
+            query.setParameter("plant", plant);
+            query.setParameter("hdrId", hdrId);
+            query.setParameter("detId", detId);
+
+            List<Object[]> rows = query.list();
+
+            wasteMovementInorganicProductOutDTOList = new ArrayList<>();
+            for(Object[] row: rows) {
+                WasteMovementInorganicProductOutDTO wasteMovementInorganicProductOutDTO = new WasteMovementInorganicProductOutDTO();
+                wasteMovementInorganicProductOutDTO.setProductName((String) row[0]);
+                wasteMovementInorganicProductOutDTO.setItem((String) row[1]);
+                wasteMovementInorganicProductOutDTO.setQty((double) row[2]);
+                wasteMovementInorganicProductOutDTO.setUom((String) row[3]);
+                wasteMovementInorganicProductOutDTO.setId((Integer) row[4]);
+
+                wasteMovementInorganicProductOutDTOList.add(wasteMovementInorganicProductOutDTO);
+            }
+
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            session.close();
+        }
+        return wasteMovementInorganicProductOutDTOList;
+    }
+
+    @Override
+    public List<WasteMovementOWCOutcomeOutDTO> getWasteMovementOWCOutcomeProducts(String plant, String projectNo, Integer hdrId, Integer detId) {
+        Session session = sessionFactory.openSession();
+        List<WasteMovementOWCOutcomeOutDTO> wasteMovementOWCOutcomeOutDTOList = null;
+        try {
+            String sql = "SELECT IT.ITEMDESC, WM.ITEM, WM.QTY, WM.UOM, WM.ID FROM " + plant + "_WASTE_MOVEMENT_OWC_PRODUCT WM LEFT JOIN " + plant + "_ITEMMST IT " +
+                    "ON IT.ITEM = WM.ITEM WHERE WM.PROJECTNO = :projectNo AND WM.PLANT = :plant AND WM.HDRID = :hdrId AND WM.DETID = :detId";
+
+            Query query = session.createSQLQuery(sql);
+            query.setParameter("projectNo", projectNo);
+            query.setParameter("plant", plant);
+            query.setParameter("hdrId", hdrId);
+            query.setParameter("detId", detId);
+
+            List<Object[]> rows = query.list();
+
+            wasteMovementOWCOutcomeOutDTOList = new ArrayList<>();
+            for(Object[] row: rows) {
+                WasteMovementOWCOutcomeOutDTO wasteMovementOWCOutcomeOutDTO = new WasteMovementOWCOutcomeOutDTO();
+                wasteMovementOWCOutcomeOutDTO.setProductName((String) row[0]);
+                wasteMovementOWCOutcomeOutDTO.setItem((String) row[1]);
+                wasteMovementOWCOutcomeOutDTO.setQty((double) row[2]);
+                wasteMovementOWCOutcomeOutDTO.setUom((String) row[3]);
+                wasteMovementOWCOutcomeOutDTO.setId((Integer) row[4]);
+
+                wasteMovementOWCOutcomeOutDTOList.add(wasteMovementOWCOutcomeOutDTO);
+            }
+
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            session.close();
+        }
+        return wasteMovementOWCOutcomeOutDTOList;
+    }
+
+    @Override
+    public Integer updateWasteMovement(String plant, Integer id, UpdateWasteMovementRequestDTO updateWasteMovementRequestDTO) {
+        Session session = sessionFactory.openSession();
+        String hdrsql = null;
+        String detsql = null;
+        String detInorganicsql = null;
+        String detOWCsql = null;
+        try {
+           hdrsql = "UPDATE " + plant + "_WASTE_MOVEMENT_HDR SET DATE = :date, VEHICLEID = :vehicleId, DRIVERNO = :driverNo, FINAL_DESTINATION = :finalDestination, " +
+                    "REMARKS = :remarks, DC_NO = :dcNo, VEHICLE_TYPE = :vehicleType, UPAT = :upAt, UPBY = :upBy OUTPUT INSERTED.ID WHERE ID = :hdrId AND PLANT = :plant";
+            session.beginTransaction();
+            DateTimeCalc dateTimeCalc = new DateTimeCalc();
+            Query query = session.createSQLQuery(hdrsql);
+            query.setParameter("plant", plant);
+            query.setParameter("date", dateTimeCalc.getTodayDMYDate());
+            query.setParameter("vehicleId", updateWasteMovementRequestDTO.getVehicleNo());
+            query.setParameter("driverNo", updateWasteMovementRequestDTO.getDriverNo());
+            query.setParameter("finalDestination", updateWasteMovementRequestDTO.getDestination());
+            query.setParameter("remarks", updateWasteMovementRequestDTO.getRemarks());
+            query.setParameter("dcNo", updateWasteMovementRequestDTO.getDeliveryChallanNo());
+            query.setParameter("vehicleType", updateWasteMovementRequestDTO.getVehicleType());
+            query.setParameter("upAt", dateTimeCalc.getTodayDateTime());
+            query.setParameter("upBy", null);
+            query.setParameter("hdrId", updateWasteMovementRequestDTO.getId());
+
+            Integer hdrId = ((Number) query.uniqueResult()).intValue();
+            session.getTransaction().commit();
+
+            for(WasteMovementDETDTO wasteMovementDETDTO: updateWasteMovementRequestDTO.getWasteMovementDETList()) {
+
+                detsql = "UPDATE " + plant + "_WASTE_MOVEMENT_DET SET CUSTOMERID = :customerId, CUSTOMERNAME = :customerName, DESTINATION = :destination, DESTINATION_TYPE = :destinationType, " +
+                        "WASTAGE_TYPE = :wastageType, QTY = :qty, UOM = :uom, UPAT = :upAt, UPBY = :upBy OUTPUT INSERTED.ID WHERE HDRID = :hdrId AND ID = :id AND PLANT = :plant";
+                session.beginTransaction();
+                Query query1 = session.createSQLQuery(detsql);
+                query1.setParameter("plant", plant);
+                query1.setParameter("customerId", wasteMovementDETDTO.getCustomerId());
+                query1.setParameter("customerName", wasteMovementDETDTO.getCustomerName());
+                query1.setParameter("hdrId", hdrId);
+                query1.setParameter("id", wasteMovementDETDTO.getId());
+                query1.setParameter("destination", wasteMovementDETDTO.getDestination());
+                query1.setParameter("destinationType", wasteMovementDETDTO.getDestinationType());
+                query1.setParameter("wastageType", wasteMovementDETDTO.getWastageType().toString());
+                query1.setParameter("qty", wasteMovementDETDTO.getQty());
+                query1.setParameter("uom", wasteMovementDETDTO.getUom());
+                query1.setParameter("upAt", dateTimeCalc.getTodayDateTime());
+                query1.setParameter("upBy", null);
+
+                Integer detId = ((Number) query1.uniqueResult()).intValue();
+                session.getTransaction().commit();
+
+                if(wasteMovementDETDTO.getWastageType() == WastageType.INORGANIC_WASTE) {
+                    for(WasteMovementInorganicProductDTO wasteMovementInorganicProductDTO: wasteMovementDETDTO.getWasteMovementInorganicProductList()) {
+
+                        detInorganicsql = "UPDATE " + plant + "_WASTE_MOVEMENT_INORGANIC_PRODUCT SET ITEM = :item, QTY = :qty, UOM = :uom, UPAT = :upAt, UPBY = :upBy " +
+                                "WHERE ID = :id AND DETID = :detId AND HDRID = :hdrId AND PLANT = :plant";
+                        session.beginTransaction();
+                        Query query2 = session.createSQLQuery(detInorganicsql);
+                        query2.setParameter("plant", plant);
+                        query2.setParameter("id", wasteMovementInorganicProductDTO.getId());
+                        query2.setParameter("detId", detId);
+                        query2.setParameter("hdrId", hdrId);
+                        query2.setParameter("item", wasteMovementInorganicProductDTO.getItem());
+                        query2.setParameter("qty", wasteMovementInorganicProductDTO.getQty());
+                        query2.setParameter("uom", wasteMovementInorganicProductDTO.getUom());
+                        query2.setParameter("upAt", dateTimeCalc.getTodayDateTime());
+                        query2.setParameter("upBy", null);
+
+                        query2.executeUpdate();
+                        session.getTransaction().commit();
+                    }
+                }
+
+                if(wasteMovementDETDTO.getWastageType() == WastageType.OWCOUTCOME) {
+                    for(WasteMovementOWCOutcomeDTO wasteMovementOWCOutcomeDTO: wasteMovementDETDTO.getWasteMovementOWCOutcomeList()) {
+//                        detOWCsql = "INSERT INTO " + plant + "_WASTE_MOVEMENT_OWC_PRODUCT (PLANT, PROJECTNO, DETID, HDRID, ITEM, QTY, UOM, CRAT, CRBY) " +
+//                                "VALUES (:plant, :projectNo, :detId, :hdrId, :item, :qty, :uom, :crAt, :crBy)";
+                        detOWCsql = "UPDATE " + plant + "_WASTE_MOVEMENT_OWC_PRODUCT SET ITEM = :item, QTY = :qty, UOM = :uom, UPAT = :upAt, UPBY = :upBy " +
+                                "WHERE ID = :id AND DETID = :detId AND HDRID = :hdrId AND PLANT = :plant";
+                        session.beginTransaction();
+                        Query query2 = session.createSQLQuery(detOWCsql);
+                        query2.setParameter("plant", plant);
+                        query2.setParameter("id", wasteMovementOWCOutcomeDTO.getId());
+                        query2.setParameter("detId", detId);
+                        query2.setParameter("hdrId", hdrId);
+                        query2.setParameter("item", wasteMovementOWCOutcomeDTO.getItem());
+                        query2.setParameter("qty", wasteMovementOWCOutcomeDTO.getQty());
+                        query2.setParameter("uom", wasteMovementOWCOutcomeDTO.getUom());
+                        query2.setParameter("upAt", dateTimeCalc.getTodayDateTime());
+                        query2.setParameter("upBy", null);
+
+                        query2.executeUpdate();
+                        session.getTransaction().commit();
+                    }
+                }
+            }
+
+        } catch(Exception ex) {
+            session.getTransaction().rollback();
+            throw new RuntimeException(ex);
+        } finally {
+            session.close();
+        }
+        return 1;
     }
 }

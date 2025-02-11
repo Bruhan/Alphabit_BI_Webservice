@@ -1,5 +1,6 @@
 package com.facility.management.usecases.employee_master.dao;
 
+import com.facility.management.persistence.models.EmployeeMaster;
 import com.facility.management.usecases.employee_master.dto.WorkerDTO;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
@@ -81,11 +82,12 @@ public class EmployeeMasterDaoImpl implements EmployeeMasterDao{
         List<WorkerDTO> workerDTOList = null;
         String sql = null;
         try {
-            sql = "SELECT PLANT, ID, EMPCODE, EMPNAME FROM " + plant + "_PROJECT_WORKERLIST WHERE PLANT = :plant AND PROJECTNO = :projectNo";
+            sql = "SELECT PLANT, ID, EMPCODE, EMPNAME FROM " + plant + "_PROJECT_WORKERLIST WHERE PLANT = :plant AND PROJECTNO = :projectNo AND STATUS = :status";
 
             Query query = session.createSQLQuery(sql);
             query.setParameter("plant", plant);
             query.setParameter("projectNo", projectNo);
+            query.setParameter("status", 1);
             List<Object[]> rows = query.list();
             workerDTOList = new ArrayList<>();
 
@@ -106,4 +108,6 @@ public class EmployeeMasterDaoImpl implements EmployeeMasterDao{
         }
         return workerDTOList;
     }
+
+
 }

@@ -6,6 +6,7 @@ import lombok.Setter;
 @Getter
 @Setter
 public class WastageDTO {
+    private int id;
     private String projectNo;
     private String wastageType;
     private double wastageQty;

@@ -13,9 +13,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletRequest;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.List;
 
@@ -132,30 +129,31 @@ public class AttendanceController {
         return new ResponseEntity<>(resultDao, HttpStatus.OK);
     }
 
-    @PutMapping("/attendance/{id}")
+    @PutMapping("/attendance/{empId}")
     public ResponseEntity<Object> updateAttendance(HttpServletRequest request,
-                                                   @PathVariable("id") int id,
-                                                   @RequestParam("attendance") String attendanceData,
-                                                   @RequestParam("inTimeFace") MultipartFile inTimeFace,
-                                                   @RequestParam("outTimeFace") MultipartFile outTimeFace
+                                                   @PathVariable("empId") int empId, @RequestBody UpdateStaffAttendanceRequestDTO attendanceData
                                                    ) throws Exception {
         ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
         String plant = claimsDao.getPlt();
 //        String plant = "test";
 
-        ObjectMapper objectMapper = new ObjectMapper();
-        AttendanceDTO attendanceDTO = objectMapper.readValue(attendanceData, AttendanceDTO.class);
-
-        attendanceDTO.setInTimeFace(inTimeFace.getBytes());
-        attendanceDTO.setOutTimeFace(outTimeFace.getBytes());
-
-        Integer result = attendanceService.updateAttendance(plant, attendanceDTO, id);
+        Integer result = attendanceService.updateAttendance(plant, empId, attendanceData);
 
         if(result == 0) {
-            return new ResponseEntity<>("Attendance Record not found", HttpStatus.NOT_FOUND);
+            ResultDao resultDao = new ResultDao();
+            resultDao.setMessage("Attendance Record Not Found");
+            resultDao.setResults(result);
+            resultDao.setStatusCode(HttpStatus.NOT_FOUND.value());
+
+            return new ResponseEntity<>(resultDao, HttpStatus.OK);
         }
 
-        return new ResponseEntity<>("Attendance updated Successfully", HttpStatus.OK);
+        ResultDao resultDao = new ResultDao();
+        resultDao.setMessage("Attendance Updated Successfully");
+        resultDao.setResults(result);
+        resultDao.setStatusCode(HttpStatus.OK.value());
+
+        return new ResponseEntity<>(resultDao, HttpStatus.OK);
 
     }
 
@@ -181,6 +179,20 @@ public class AttendanceController {
         HashMap<String, Object> result = attendanceService.saveProjectWorker(plant, projectWorkerRequestDTO);
 
         return new ResponseEntity<>(result, HttpStatus.OK);
+    }
+
+
+    @PostMapping("/toggle-project-worker")
+    public ResponseEntity<Object> toggleProjectWorker(HttpServletRequest request, @RequestBody ToggleProjectWorkerDTO toggleProjectWorkerDTO) throws Exception {
+        ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
+        String plant = claimsDao.getPlt();
+//        String plant = "test";
+
+        ResultDao result = attendanceService.toggleProjectWorker(plant, toggleProjectWorkerDTO);
+
+
+        return new ResponseEntity<>(result, HttpStatus.OK);
+
     }
 
     @GetMapping("/project-worker/{projectNo}")

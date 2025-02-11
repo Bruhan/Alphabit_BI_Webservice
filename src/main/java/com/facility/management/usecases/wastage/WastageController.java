@@ -56,6 +56,30 @@ public class WastageController {
         }
     }
 
+    @PutMapping("/wastage/{projectNo}")
+    public ResponseEntity<Object> updateDailyWastage(HttpServletRequest request, @PathVariable("projectNo") String projectNo, @RequestBody UpdateDailyWastageDTO updateDailyWastageDTO) throws Exception {
+        ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
+        String plant = claimsDao.getPlt();
+
+        Integer result = wastageService.updateDailyWastage(plant, projectNo, updateDailyWastageDTO);
+
+        if(result == 0) {
+            ResultDao resultDao = new ResultDao();
+            resultDao.setMessage("Edit wastage was failed");
+            resultDao.setResults(result);
+            resultDao.setStatusCode(HttpStatus.NOT_FOUND.value());
+
+            return new ResponseEntity<>(resultDao, HttpStatus.OK);
+        }
+
+        ResultDao resultDao = new ResultDao();
+        resultDao.setMessage("Wastage edit was successful");
+        resultDao.setResults(result);
+        resultDao.setStatusCode(HttpStatus.OK.value());
+
+        return new ResponseEntity<>(resultDao, HttpStatus.OK);
+    }
+
     @GetMapping("/wastage/details/{projectNo}")
     public ResponseEntity<Object> getWastageDetails(HttpServletRequest request, @PathVariable("projectNo") String projectNo, @RequestParam(required = false) WastageType wastageType) throws Exception {
         ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
@@ -214,12 +238,21 @@ public class WastageController {
         return new ResponseEntity<>(resultDao, HttpStatus.OK);
     }
 
-//    @GetMapping("/move-owc-outcome-summary/{projectNo}")
-//    public ResponseEntity<Object> getMovedOWCOutcomeSummary(HttpServletRequest request, @PathVariable("projectNo") String projectNo) throws Exception {
-//        ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
-//        String plant = claimsDao.getPlt();
-//
-//    }
+    @GetMapping("/move-owc-outcome-summary/{projectNo}")
+    public ResponseEntity<Object> getMovedOWCOutcomeSummary(HttpServletRequest request, @PathVariable("projectNo") String projectNo) throws Exception {
+        ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
+        String plant = claimsDao.getPlt();
+
+        List<MovedOWCOutcomeDTO> owcOutcomeDTOList = wastageService.getMovedOWCOutcomeSummary(plant, projectNo);
+
+        ResultDao resultDao = new ResultDao();
+        resultDao.setResults(owcOutcomeDTOList);
+        resultDao.setStatusCode(HttpStatus.OK.value());
+        resultDao.setMessage("SUCCESS");
+
+        return new ResponseEntity<>(resultDao, HttpStatus.OK);
+
+    }
 
     @GetMapping("/organic-wastage-summary/{projectNo}")
     public ResponseEntity<Object> getOrganicWastageSummary(HttpServletRequest request, @PathVariable("projectNo") String projectNo) throws Exception {

@@ -1,8 +1,6 @@
 package com.facility.management.persistence.models;
 
-import lombok.Builder;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 
 import javax.persistence.*;
 
@@ -11,6 +9,8 @@ import javax.persistence.*;
 @Getter
 @Setter
 @Builder
+@AllArgsConstructor
+@NoArgsConstructor
 public class EmployeeMaster {
     @Id
     @GeneratedValue(strategy= GenerationType.IDENTITY)
@@ -123,7 +123,7 @@ public class EmployeeMaster {
     @Column(name="UPBY")
     private String UPBY;
     @Column(name="NUMBEROFMANDAYS")
-    private double NUMBEROFMANDAYS;
+    private Double NUMBEROFMANDAYS;
     @Column(name="EMPLOYEETYPEID")
     private int EMPLOYEETYPEID;
     @Column(name="REPORTING_INCHARGE")

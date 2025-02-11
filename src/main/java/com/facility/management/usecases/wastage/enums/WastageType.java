@@ -1,5 +1,5 @@
 package com.facility.management.usecases.wastage.enums;
 
 public enum WastageType {
-    ORGANIC_WASTE, INORGANIC_WASTE, REJECTED_WASTE, GARDEN_WASTE, DEPRISE_WASTE
+    ORGANIC_WASTE, INORGANIC_WASTE, REJECTED_WASTE, GARDEN_WASTE, DEBRIS_WASTE
 }

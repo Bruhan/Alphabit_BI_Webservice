@@ -15,4 +15,6 @@ public class PRDetRequestDTO {
     private String uom;
     private double processedQty;
     private double balanceQty;
+    private double receivedQty;
+    private double nonReceivedQty;
 }

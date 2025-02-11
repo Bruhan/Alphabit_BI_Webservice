@@ -18,5 +18,6 @@ public class PRHdrRequestDTO {
     private RequestStatus requestStatus;
     private String requesterId;
     private String requesterRemarks;
+    private String approverCode;
     private String approvalStatus;
 }

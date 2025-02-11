@@ -3,6 +3,7 @@ package com.facility.management.usecases.wastage_movement;
 import com.facility.management.helpers.common.results.ResultDao;
 import com.facility.management.helpers.common.token.ClaimsDao;
 import com.facility.management.helpers.common.token.ClaimsSet;
+import com.facility.management.usecases.wastage_movement.dto.UpdateWasteMovementRequestDTO;
 import com.facility.management.usecases.wastage_movement.dto.WasteMovementDTO;
 import com.facility.management.usecases.wastage_movement.dto.WasteMovementRequestDTO;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,6 +40,21 @@ public class WasteMovementController {
         return new ResponseEntity<>(resultDao, HttpStatus.OK);
     }
 
+    @PutMapping("wastage-movement/{id}")
+    public ResponseEntity<Object> updateWasteMovement(HttpServletRequest request, @PathVariable("id") Integer id, @RequestBody UpdateWasteMovementRequestDTO updateWasteMovementRequestDTO) throws Exception {
+        ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
+        String plant = claimsDao.getPlt();
+
+        Integer result = wasteMovementService.updateWasteMovement(plant, id, updateWasteMovementRequestDTO);
+
+        ResultDao resultDao = new ResultDao();
+        resultDao.setResults(result);
+        resultDao.setStatusCode(HttpStatus.OK.value());
+        resultDao.setMessage("SUCCESS");
+
+        return new ResponseEntity<>(resultDao, HttpStatus.OK);
+    }
+
     @GetMapping("wastage-movement-summary/{projectNo}")
     public ResponseEntity<Object> getWastageMovementSummary(HttpServletRequest request, @PathVariable("projectNo") String projectNo) throws Exception {
         ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
@@ -53,4 +69,5 @@ public class WasteMovementController {
 
         return new ResponseEntity<>(resultDao, HttpStatus.OK);
     }
+
 }

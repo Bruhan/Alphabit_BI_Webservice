@@ -14,7 +14,7 @@ public class ProjectWorkerDTO {
     private BigInteger empId;
     private String empCode;
     private String empName;
-    private String projectInDate;
-    private String projectOutDate;
+//    private String projectInDate;
+//    private String projectOutDate;
     private Byte status;
 }

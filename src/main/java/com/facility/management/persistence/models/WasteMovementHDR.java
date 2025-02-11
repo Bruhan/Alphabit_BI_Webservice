@@ -36,6 +36,12 @@ public class WasteMovementHDR {
     @Column(name = "REMARKS")
     private String remarks;
 
+    @Column(name = "DC_NO")
+    private String deliveryChallanNo;
+
+    @Column(name = "VEHICLE_TYPE")
+    private String vehicleType;
+
     @Column(name="CRAT")
     private String crAt;
 

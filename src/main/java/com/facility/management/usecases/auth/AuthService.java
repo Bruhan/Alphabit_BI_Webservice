@@ -62,9 +62,9 @@ public class AuthService implements UserDetailsService {
     public AuthService() {
     }
 
-    public void setPlant(String plant) {
-        this.plant = plant;
-    }
+//    public void setPlant(String plant) {
+//        this.plant = plant;
+//    }
 
     String plant;
 
@@ -76,20 +76,24 @@ public class AuthService implements UserDetailsService {
 //        UserInfo userDao = authDao.findByUserId(empUserName);
 
 //        if (userDao == null) {
-////            throw new BadCredentialsException("Username wrong");
+//            throw new BadCredentialsException("Username wrong");
 //            throw new WrongCredentialsException("Invalid Credentials");
 //        }
 //        return new User(userDao.getUserId(), userDao.getPassword(),
 //                new ArrayList<>());
-        if(plant == null) {
-            throw new RuntimeException("No Plant Found");
-        }
 
-        EmployeeMaster employeeMaster = authDao.findByEmployeeLoginId(empUserName, plant);
-        if (employeeMaster == null) {
+//        if(plant == null) {
+//            throw new RuntimeException("No Plant Found");
+//        }
+
+//        EmployeeMaster employeeMaster = authDao.findByEmployeeLoginId(empUserName, plant);
+
+        HREmpUserInfo hrEmpUserInfo = authDao.findByEmployeeLoginId2(empUserName);
+
+        if (hrEmpUserInfo == null) {
             throw new WrongCredentialsException("Invalid Credentials");
         }
-        return new User(employeeMaster.getEMPUSERID(), employeeMaster.getPASSWORD(),
+        return new User(hrEmpUserInfo.getEmpUserId(), hrEmpUserInfo.getPassword(),
                 new ArrayList<>());
 
     }
@@ -97,62 +101,75 @@ public class AuthService implements UserDetailsService {
     public AuthTokensDTO createNewTokens(AuthRequestDTO authenticationRequest) throws Exception {
         AuthTokensDTO authResponseDao;
 //        UserInfo userDao;
-        EmployeeMaster employeeDao;
+        HREmpUserInfo hrEmpUserInfo;
         CryptoAlgoUtil cryptoAlgoUtil = new CryptoAlgoUtil(pathName);
         String userName = authenticationRequest.getUsername();
         String password = cryptoAlgoUtil.encrypt(authenticationRequest.getPassword());
-        this.plant = authenticationRequest.getPlant();
+//        this.plant = authenticationRequest.getPlant();
 
 
         try {
             authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(
                     userName, password));
         } catch (Exception e) {
-            throw new WrongCredentialsException("Invalid Credentials");
+            authResponseDao = new AuthTokensDTO(null, null, HttpStatus.UNAUTHORIZED.value(), "Invalid Credentials");
+            return authResponseDao;
         }
 
-        employeeDao = authDao.findByEmployeeLoginId(userName, plant);
+        hrEmpUserInfo = authDao.findByEmployeeLoginId2(userName);
+        EmployeeMaster employeeMaster = authDao.getEmployeeByUsername(hrEmpUserInfo.getPlant(), hrEmpUserInfo.getEmpUserId());
 
         if(authenticationRequest.getType().equals("SUPERVISOR")) {
 
-            boolean isEmployeeSupervisor = authDao.checkEmployeeType(plant, employeeDao.getEMPNO(), "SUPERVISOR");
+            boolean isEmployeeSupervisor = authDao.checkEmployeeType(hrEmpUserInfo.getPlant(), hrEmpUserInfo.getEmpUserId(), "SUPERVISOR");
+
 
             if(isEmployeeSupervisor) {
-                boolean hasMultipleProjects = authDao.checkSupervisorHasMultipleProjects(employeeDao.getEMPNO(), plant);
+//                boolean hasMultipleProjects = authDao.checkSupervisorHasMultipleProjects(employeeDao.getEMPNO(), plant);
+//
+//                if(hasMultipleProjects) {
+//                    authResponseDao = new AuthTokensDTO(null, null, HttpStatus.FORBIDDEN.value(), "Supervisor is involved in multiple projects");
+//                    return authResponseDao;
+//                }
 
-                if(hasMultipleProjects) {
-                    authResponseDao = new AuthTokensDTO(null, null, HttpStatus.FORBIDDEN.value(), "Supervisor is involved in multiple projects");
-                    return authResponseDao;
-                }
+//                FinRecycleProject finRecycleProject = authDao.findProjectBySupervisor(employeeDao.getEMPNO(), plant);
 
-                FinRecycleProject finRecycleProject = authDao.findProjectBySupervisor(employeeDao.getEMPNO(), plant);
+//                if(finRecycleProject == null) {
+//                    List<FinProjectMultiSupervisor> finProjectMultiSupervisorList = authDao.findMultiSupervisorsById(employeeDao.getEMPNO(), plant);
+//                    List<Integer> projectHDRIdList = new ArrayList<>();
+//                    for(FinProjectMultiSupervisor finProjectMultiSupervisor: finProjectMultiSupervisorList) {
+//                        projectHDRIdList.add(finProjectMultiSupervisor.getProjectHdrId());
+//                    }
+//
+//                    finRecycleProject = authDao.findProjectByIds(projectHDRIdList, plant);
+//                }
+//
+//                if(finRecycleProject == null) {
+//                    authResponseDao = new AuthTokensDTO(null, null, HttpStatus.FORBIDDEN.value(), "Supervisor has not assigned to any projects");
+//                    return authResponseDao;
+//                }
 
-                if(finRecycleProject == null) {
-                    List<FinProjectMultiSupervisor> finProjectMultiSupervisorList = authDao.findMultiSupervisorsById(employeeDao.getEMPNO(), plant);
-                    List<Integer> projectHDRIdList = new ArrayList<>();
-                    for(FinProjectMultiSupervisor finProjectMultiSupervisor: finProjectMultiSupervisorList) {
-                        projectHDRIdList.add(finProjectMultiSupervisor.getProjectHdrId());
-                    }
+                JwtUtil.plt = hrEmpUserInfo.getPlant();
 
-                    finRecycleProject = authDao.findProjectByIds(projectHDRIdList, plant);
-                }
 
-                if(finRecycleProject == null) {
-                    authResponseDao = new AuthTokensDTO(null, null, HttpStatus.FORBIDDEN.value(), "Supervisor has not assigned to any projects");
-                    return authResponseDao;
-                }
+//                String projectNo = finRecycleProject.getProject();
+//                Map<String, Object> claims = ClaimsSet.setClaimsDetails(employeeDao, projectNo, employeeDao.getEMPUSERID());
+                Map<String, Object> claims = ClaimsSet.setClaimsDetails(hrEmpUserInfo, employeeMaster.getEMPNO());
+//
+//                if(finRecycleProject.getProjectSiteType() == null || finRecycleProject.getProjectSiteType().isEmpty()) {
+//                    authResponseDao = new AuthTokensDTO(null, null, HttpStatus.FORBIDDEN.value(), "The Project Type is not specified");
+//
+//                    return authResponseDao;
+//                }
 
-                JwtUtil.plt = plant;
+//                PlantDTO plantDTO = plantDao.getPlantByPlantId(plant);
+//
+//                claims.put("iaslin", plantDTO.getIsAutoSupervisorLogin());
+//                claims.put("iaslot", plantDTO.getIsAutoSupervisorLogout());
+//                claims.put("typ", finRecycleProject.getProjectSiteType());
 
-                String projectNo = finRecycleProject.getProject();
-                Map<String, Object> claims = ClaimsSet.setClaimsDetails(employeeDao, projectNo, employeeDao.getEMPUSERID());
-
-                PlantDTO plantDTO = plantDao.getPlantByPlantId(plant);
-
-                claims.put("iaslin", plantDTO.getIsAutoSupervisorLogin());
-                claims.put("iaslot", plantDTO.getIsAutoSupervisorLogout());
-                String accessToken = jwtTokenUtil.generateAccessToken(employeeDao, claims);
-                String refreshToken = jwtTokenUtil.generateRefreshToken(employeeDao.getEMPUSERID(), claims);
+                String accessToken = jwtTokenUtil.generateAccessToken(hrEmpUserInfo, claims);
+                String refreshToken = jwtTokenUtil.generateRefreshToken(employeeMaster.getEMPNO(), claims);
 
 
                 authResponseDao = new AuthTokensDTO(accessToken, refreshToken, HttpStatus.OK.value(), "SUCCESS");
@@ -167,19 +184,20 @@ public class AuthService implements UserDetailsService {
 
         } else if(authenticationRequest.getType().equals("EXECUTIVE")) {
 
-            boolean isEmployeeExecutive = authDao.checkEmployeeType(plant, employeeDao.getEMPNO(), "EXECUTIVE");
+            boolean isEmployeeExecutive = authDao.checkEmployeeType(hrEmpUserInfo.getPlant(), hrEmpUserInfo.getEmpUserId(), "EXECUTIVE");
             if(isEmployeeExecutive) {
 
-                JwtUtil.plt = plant;
+                JwtUtil.plt = hrEmpUserInfo.getPlant();
 
-                Map<String, Object> claims = ClaimsSet.setClaimsDetails(employeeDao, "", employeeDao.getEMPUSERID());
+//                Map<String, Object> claims = ClaimsSet.setClaimsDetails(employeeDao, "", employeeDao.getEMPUSERID());
+                Map<String, Object> claims = ClaimsSet.setClaimsDetails(hrEmpUserInfo, employeeMaster.getEMPNO());
 
 //            PlantDTO plantDTO = plantDao.getPlantByPlantId(plant);
 
 //            claims.put("iaslin", plantDTO.getIsAutoSupervisorLogin());
 //            claims.put("iaslot", plantDTO.getIsAutoSupervisorLogout());
-                String accessToken = jwtTokenUtil.generateAccessToken(employeeDao, claims);
-                String refreshToken = jwtTokenUtil.generateRefreshToken(employeeDao.getEMPUSERID(), claims);
+                String accessToken = jwtTokenUtil.generateAccessToken(hrEmpUserInfo, claims);
+                String refreshToken = jwtTokenUtil.generateRefreshToken(employeeMaster.getEMPNO(), claims);
 
 
                 authResponseDao = new AuthTokensDTO(accessToken, refreshToken, HttpStatus.OK.value(), "SUCCESS");

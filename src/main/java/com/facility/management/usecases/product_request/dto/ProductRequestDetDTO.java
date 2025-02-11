@@ -9,6 +9,7 @@ import lombok.Setter;
 public class ProductRequestDetDTO {
     private String plant;
     private int productRequestDetId;
+    private String item;
     private String productName;
     private String productDescription;
     private LNStatus lnStatus;
@@ -17,4 +18,6 @@ public class ProductRequestDetDTO {
     private String uom;
     private double processedQty;
     private double balanceQty;
+    private double receivedQty;
+    private double nonReceivedQty;
 }

@@ -2,15 +2,17 @@ package com.facility.management.usecases.product_request;
 
 import com.facility.management.helpers.common.calc.DateTimeCalc;
 import com.facility.management.persistence.models.ProjectStockRequestHDR;
+import com.facility.management.usecases.activity_log.ActivityLogModel;
+import com.facility.management.usecases.activity_log.ActivityLogService;
 import com.facility.management.usecases.product_request.dao.ProductRequestDao;
-import com.facility.management.usecases.product_request.dto.PRHdrRequestDTO;
-import com.facility.management.usecases.product_request.dto.ProductRequestHdrDTO;
-import com.facility.management.usecases.product_request.dto.ProductRequestReceiveDTO;
+import com.facility.management.usecases.product_request.dto.*;
 import com.facility.management.usecases.product_request.enums.ApprovalStatus;
 import com.facility.management.usecases.product_request.enums.RequestStatus;
+import com.facility.management.usecases.project.ProjectService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -20,6 +22,12 @@ public class ProductRequestService {
 
     @Autowired
     ProductRequestDao productRequestDao;
+
+    @Autowired
+    ActivityLogService activityLogService;
+
+    @Autowired
+    ProjectService projectService;
 
     public List<ProductRequestHdrDTO> getProductRequestByCriteria(String plant, String projectNo, String requestorId, RequestStatus requestStatus, ApprovalStatus approvalStatus) {
         List<ProductRequestHdrDTO> productRequestHdrDTOList = null;
@@ -61,11 +69,19 @@ public class ProductRequestService {
                 productRequestHdrDTO.setRequestedDate(dateTimeCalc.convertToDMYDate(productRequestHdrDTO.getRequestedDate(), "dd/MM/yyyy"));
             }
 
+            String executiveNo = projectService.getExecutiveByProjectNo(plant, productRequestHdrDTO.getProjectNo());
+            productRequestHdrDTO.setApproverCode(executiveNo);
 //            if(approvalDateMatcher.matches()) {
 //                DateTimeCalc dateTimeCalc = new DateTimeCalc();
 //                productRequestHdrDTO.setApprovalDate(dateTimeCalc.convertToDMYDate(productRequestHdrDTO.getApprovalDate(), "dd/MM/yyyy"));
 //            }
 
+            DateTimeCalc dateTimeCalc = new DateTimeCalc();
+            ActivityLogModel activityLogModel = new ActivityLogModel();
+            activityLogService.setActivityLogDetails(activityLogModel.setActivityLogModel(
+                    plant, "SAVE_PRODUCT_REQUEST", "", "", "", 0.0,
+                    productRequestHdrDTO.getRequesterId(), dateTimeCalc.getTodayDMYDate(), dateTimeCalc.getTodayDMYDate(), productRequestHdrDTO.getRequesterId(),
+                    "CREATED", ""));
             result = productRequestDao.saveProductRequest(plant, productRequestHdrDTO);
         } catch (Exception ex) {
             throw new RuntimeException(ex);
@@ -98,6 +114,12 @@ public class ProductRequestService {
                 productRequestHdrDTO.setApprovalStatus(approvalStatus);
             }
 
+            DateTimeCalc dateTimeCalc = new DateTimeCalc();
+            ActivityLogModel activityLogModel = new ActivityLogModel();
+            activityLogService.setActivityLogDetails(activityLogModel.setActivityLogModel(
+                    plant, "UPDATE_PRODUCT_REQUEST", "", "", "", 0.0,
+                    productRequestHdrDTO.getRequesterId(), dateTimeCalc.getTodayDMYDate(), dateTimeCalc.getTodayDMYDate(), productRequestHdrDTO.getRequesterId(),
+                    "CREATED", ""));
             result = productRequestDao.updateProductRequest(plant, requestId, productRequestHdrDTO);
 
         } catch (Exception ex) {
@@ -107,11 +129,30 @@ public class ProductRequestService {
         return result;
     }
 
-    public Integer receiveProductRequest(String plant, ProductRequestReceiveDTO productRequestReceiveDTO) {
-        Integer result = 0;
+    public HashMap<String, Integer> receiveProductRequest(String plant, ProductRequestReceiveDTO productRequestReceiveDTO) {
+        HashMap<String, Integer> result = new HashMap<>();
         try {
 
-            result = productRequestDao.receiveProductRequest(plant, productRequestReceiveDTO);
+            DateTimeCalc dateTimeCalc = new DateTimeCalc();
+            ActivityLogModel activityLogModel = new ActivityLogModel();
+
+            for(ProductRequestReceiveProductDTO productRequestReceiveProductDTO: productRequestReceiveDTO.getProductRequestReceiveProductDTOList()) {
+                ProductRequestDetDTO productRequestDetDTO = productRequestDao.getProductRequestDetByItem(plant, productRequestReceiveProductDTO.getItem());
+
+                productRequestDetDTO.setReceivedQty(productRequestDetDTO.getReceivedQty() + productRequestReceiveProductDTO.getQty());
+                productRequestDetDTO.setNonReceivedQty(productRequestDetDTO.getNonReceivedQty() - productRequestReceiveProductDTO.getQty());
+
+                Integer updateProductRequestDet = productRequestDao.updateProductRequestDET(plant, productRequestDetDTO);
+                result.put("updateProductRequestDET - " + productRequestReceiveProductDTO.getId(), updateProductRequestDet);
+            }
+
+            activityLogService.setActivityLogDetails(activityLogModel.setActivityLogModel(
+                    plant, "RECEIVE_PRODUCT_REQUEST", "", "", "", 0.0,
+                    productRequestReceiveDTO.getReceiverId(), dateTimeCalc.getTodayDMYDate(), dateTimeCalc.getTodayDMYDate(), productRequestReceiveDTO.getReceiverId(),
+                    "CREATED", ""));
+            Integer receiveProductRequest = productRequestDao.receiveProductRequest(plant, productRequestReceiveDTO);
+            result.put("receiveProductRequest", receiveProductRequest);
+
         } catch (Exception ex) {
             throw new RuntimeException(ex);
         }
@@ -132,5 +173,33 @@ public class ProductRequestService {
         } catch (Exception ex) {
             throw new RuntimeException(ex);
         }
+    }
+
+    public Integer approveProductRequests(String plant, ApprovePRDTO approvePRDTO) {
+        Integer result = 0;
+        try {
+            DateTimeCalc dateTimeCalc = new DateTimeCalc();
+            ActivityLogModel activityLogModel = new ActivityLogModel();
+            activityLogService.setActivityLogDetails(activityLogModel.setActivityLogModel(
+                    plant, "APPROVE_PRODUCT_REQUEST", "", "", "", 0.0,
+                    approvePRDTO.getApproverCode(), dateTimeCalc.getTodayDMYDate(), dateTimeCalc.getTodayDMYDate(), approvePRDTO.getApproverCode(),
+                    "CREATED", ""));
+            result = productRequestDao.approveProductRequests(plant, approvePRDTO);
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        }
+
+        return result;
+    }
+
+    public List<PRNonReceivedDTO> getProductCurrentStock(String plant, String projectNo) {
+        List<PRNonReceivedDTO> prNonReceivedDTOList = null;
+        try {
+            prNonReceivedDTOList = productRequestDao.getProductCurrentStock(plant, projectNo);
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        }
+
+        return prNonReceivedDTOList;
     }
 }

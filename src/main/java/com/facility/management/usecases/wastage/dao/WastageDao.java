@@ -11,9 +11,13 @@ public interface WastageDao {
 
     DailyWastageDetailsHDR getDailyWastageDetailsHDR(String plant, String totalWastageType, String projectNo);
 
+    DailyWastageDetailsDET getDailyWastageDetailsDETById(String plant, String projectNo, int id);
+
     Integer saveDailyWastageHdr(String plant, DailyWastageDetailsHDR dailyWastageDetailsHDR);
 
     Integer updateDailyWastageHdr(String plant, DailyWastageDetailsHDR dailyWastageDetailsHDR);
+
+    Integer updateDailyWastageDet(String plant, DailyWastageDetailsDET oldDailyWastageDetails);
 
     List<WastageDetailsDTO> getWastageDetails(String plant, String projectNo, WastageType wastageType);
 
@@ -48,6 +52,12 @@ public interface WastageDao {
     Integer updateOWCOutcomeHdr(String plant, OWCOutcomeHDR owcOutcomeHDR);
 
     Integer saveOWCOutcomeHdr(String plant, OWCOutcomeHDR owcOutcomeHDR);
+
+    OWCOutcomeProductDET getOWCOutcomeProductDET(String plant, String projectNo, String product);
+
+    Integer updateOWCOutcomeProductDet(String plant, OWCOutcomeProductDET existingOWCOutcomeProductDET);
+
+    Integer saveOWCOutcomeProductDet(String plant, OWCOutcomeProductDET owcOutcomeProductDET);
 
     Integer saveInorganicWastageDet(String plant, InorganicWasteDET inorganicWasteDET);
 
@@ -89,11 +99,17 @@ public interface WastageDao {
 
     boolean checkProjectInventory(String plant, String projectNo, String product);
 
+    boolean checkOWCOutcomeProductDET(String plant, String projectNo, String product);
+
     List<BioGasDTO> getBioGasSummary(String plant, String projectNo);
 
     List<OWCMachineDTO> getOWCSummary(String plant, String projectNo);
 
+    List<OWCMachineProductDTO> getOWCMachineProducts(String plant, String projectNo, int detId);
+
     List<OWCOutcomeDTO> getReceivedOWCOutcomeSummary(String plant, String projectNo);
+
+    List<MovedOWCOutcomeDTO> getMovedOWCOutcomeSummary(String plant, String projectNo);
 
     List<WastageDTO> getWastageSummary(String plant, String projectNo, String date);
 
@@ -120,4 +136,9 @@ public interface WastageDao {
 
 
     List<ProjectInventoryDTO> getAllProjectInventory(String plant, String projectNo);
+
+
+    Integer saveMovedOWCOutcomeDet(String plant, MoveOWCOutcomeRequest moveOWCOutcomeRequest);
+
+
 }

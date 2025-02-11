@@ -49,10 +49,10 @@ public class EmployeeMasterService {
         return employeeMaster;
     }
 
-    public List<EmployeeMaster> findByEmpCode(String empcode) throws Exception {
+    public List<EmployeeMaster> findByEmpCode(String empcode, String plant) throws Exception {
         List<EmployeeMaster> employeeMaster;
         try {
-            employeeMaster = employeeMasterRepository.findByEmpCode(empcode);
+            employeeMaster = employeeMasterRepository.findByEmpCode(empcode, plant);
         }catch (Exception e){
             throw new Exception(e);
         }

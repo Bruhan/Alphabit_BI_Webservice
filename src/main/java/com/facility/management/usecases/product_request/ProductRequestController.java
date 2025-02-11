@@ -3,9 +3,7 @@ package com.facility.management.usecases.product_request;
 import com.facility.management.helpers.common.results.ResultDao;
 import com.facility.management.helpers.common.token.ClaimsDao;
 import com.facility.management.helpers.common.token.ClaimsSet;
-import com.facility.management.usecases.product_request.dto.PRHdrRequestDTO;
-import com.facility.management.usecases.product_request.dto.ProductRequestHdrDTO;
-import com.facility.management.usecases.product_request.dto.ProductRequestReceiveDTO;
+import com.facility.management.usecases.product_request.dto.*;
 import com.facility.management.usecases.product_request.enums.ApprovalStatus;
 import com.facility.management.usecases.product_request.enums.RequestStatus;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
+import java.util.HashMap;
 import java.util.List;
 
 @RestController
@@ -85,6 +84,48 @@ public class ProductRequestController {
         return new ResponseEntity<>(resultDao, HttpStatus.OK);
     }
 
+    @GetMapping("/product-requests/approved/{projectNo}")
+    public ResponseEntity<Object> getApprovedProductRequests(HttpServletRequest request, @PathVariable("projectNo") String projectNo) throws Exception {
+        ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
+        String plant = claimsDao.getPlt();
+
+        List<ProductRequestHdrDTO> productRequestHdrDTOList = productRequestService.getProductRequestByCriteria(plant, projectNo, null, null, ApprovalStatus.APPROVED);
+
+        ResultDao resultDao = new ResultDao();
+        resultDao.setResults(productRequestHdrDTOList);
+        resultDao.setStatusCode(HttpStatus.OK.value());
+        resultDao.setMessage("SUCCESS");
+        return new ResponseEntity<>(resultDao, HttpStatus.OK);
+    }
+
+    @GetMapping("/product-requests/rejected/{projectNo}")
+    public ResponseEntity<Object> getRejectedProductRequests(HttpServletRequest request, @PathVariable("projectNo") String projectNo) throws Exception {
+        ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
+        String plant = claimsDao.getPlt();
+
+        List<ProductRequestHdrDTO> productRequestHdrDTOList = productRequestService.getProductRequestByCriteria(plant, projectNo, null, null, ApprovalStatus.REJECTED);
+
+        ResultDao resultDao = new ResultDao();
+        resultDao.setResults(productRequestHdrDTOList);
+        resultDao.setStatusCode(HttpStatus.OK.value());
+        resultDao.setMessage("SUCCESS");
+        return new ResponseEntity<>(resultDao, HttpStatus.OK);
+    }
+
+    @PostMapping("/approve-product-requests")
+    public ResponseEntity<Object> approveProductRequests(HttpServletRequest request, @RequestBody ApprovePRDTO approvePRDTO) throws Exception {
+        ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
+        String plant = claimsDao.getPlt();
+
+        Integer result = productRequestService.approveProductRequests(plant, approvePRDTO);
+
+        ResultDao resultDao = new ResultDao();
+        resultDao.setResults(result);
+        resultDao.setStatusCode(HttpStatus.OK.value());
+        resultDao.setMessage("SUCCESS");
+        return new ResponseEntity<>(resultDao, HttpStatus.OK);
+    }
+
     @GetMapping("/product-requests/receive/{projectNo}")
     public ResponseEntity<Object> getProductRequestReceiveByCriteria(HttpServletRequest request, @PathVariable("projectNo") String projectNo) throws Exception {
         ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
@@ -132,19 +173,14 @@ public class ProductRequestController {
         String plant = claimsDao.getPlt();
 //        String plant = "test";
 
-        Integer result = productRequestService.receiveProductRequest(plant, productRequestReceiveDTO);
+        HashMap<String, Integer> result = productRequestService.receiveProductRequest(plant, productRequestReceiveDTO);
 
         ResultDao resultDao = new ResultDao();
-        if(result > 0) {
-            resultDao.setMessage("SUCCESS");
-            resultDao.setStatusCode(HttpStatus.OK.value());
-            return new ResponseEntity<>(resultDao, HttpStatus.OK);
-        }
-        else {
-            resultDao.setMessage("FAILED");
-            resultDao.setStatusCode(HttpStatus.NOT_IMPLEMENTED.value());
-            return new ResponseEntity<>(resultDao, HttpStatus.NOT_IMPLEMENTED);
-        }
+        resultDao.setResults(result);
+        resultDao.setMessage("SUCCESS");
+        resultDao.setStatusCode(HttpStatus.OK.value());
+        return new ResponseEntity<>(resultDao, HttpStatus.OK);
+
     }
 
     @GetMapping("product-requests/today")
@@ -171,17 +207,35 @@ public class ProductRequestController {
                                                         @PathVariable("requestId") Integer requestId,
                                                         @RequestParam(required = false) RequestStatus requestStatus,
                                                         @RequestParam(required = false) ApprovalStatus approvalStatus) throws Exception {
-                ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
-                String plant = claimsDao.getPlt();
+        ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
+        String plant = claimsDao.getPlt();
 //        String plant = "test";
 
         Integer result = productRequestService.updateProductRequest(plant, requestId, requestStatus, approvalStatus);
-
 
         if(result == 0) {
             return new ResponseEntity<>("Product Request Not Found", HttpStatus.NOT_FOUND);
         }
 
         return new ResponseEntity<>("Product Request updated Successfully", HttpStatus.OK);
+    }
+
+    @GetMapping("/product-requests/current-stock/{projectNo}")
+    public ResponseEntity<Object> getProductCurrentStock(HttpServletRequest request, @PathVariable("projectNo") String projectNo) throws Exception {
+        ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
+        String plant = claimsDao.getPlt();
+
+        List<PRNonReceivedDTO> prNonReceivedDTOList = productRequestService.getProductCurrentStock(plant, projectNo);
+
+        ResultDao resultDao = new ResultDao();
+        if(prNonReceivedDTOList == null) {
+            resultDao.setResults(prNonReceivedDTOList);
+            resultDao.setMessage("Not Found");
+            return new ResponseEntity<>(resultDao, HttpStatus.NOT_FOUND);
+        }
+        resultDao.setResults(prNonReceivedDTOList);
+        resultDao.setMessage("SUCCESS");
+        return new ResponseEntity<>(resultDao, HttpStatus.OK);
+
     }
 }

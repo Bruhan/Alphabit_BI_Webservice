@@ -1,9 +1,11 @@
 package com.facility.management.usecases.attendance;
 
 import com.facility.management.helpers.common.calc.DateTimeCalc;
-import com.facility.management.persistence.models.FinRecycleProject;
+import com.facility.management.helpers.common.results.ResultDao;
 import com.facility.management.persistence.models.ProjectWorkerList;
 import com.facility.management.persistence.models.StaffAttendance;
+import com.facility.management.usecases.activity_log.ActivityLogModel;
+import com.facility.management.usecases.activity_log.ActivityLogService;
 import com.facility.management.usecases.attendance.dao.AttendanceDao;
 import com.facility.management.usecases.attendance.dto.*;
 import com.facility.management.usecases.attendance.enums.AttendanceType;
@@ -12,14 +14,12 @@ import com.facility.management.usecases.employee_master.EmployeeMasterService;
 import com.facility.management.usecases.employee_master.dto.WorkerDTO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
@@ -34,6 +34,9 @@ public class AttendanceService {
     @Autowired
     EmployeeMasterService employeeMasterService;
 
+    @Autowired
+    ActivityLogService activityLogService;
+
 
     public List<AttendanceDTO> getAttendanceByCriteria(String plant, String date,String startDate,String endDate,String empNo) throws IOException {
 
@@ -43,7 +46,6 @@ public class AttendanceService {
         startDate = (startDate == null) ? "" : startDate;
         endDate = (endDate == null) ? "" : endDate;
         empNo = (empNo == null) ? "" : empNo;
-
 
         attendanceDTOList = attendanceDao.getAttendanceByCriteria(plant, date, startDate, endDate, empNo);
 
@@ -97,8 +99,21 @@ public class AttendanceService {
 //        return result;
 //    }
 
+    private StaffAttendance buildStaffAttendance(String plant, int workerId, String date, String time, String shiftStatus, String locLat, String locLong) {
+        return StaffAttendance.builder()
+                .plant(plant)
+                .empId(workerId)
+                .attendanceDate(date)
+                .attendanceTime(time)
+                .shiftStatus(shiftStatus)
+                .locationLat(locLat)
+                .locationLong(locLong)
+                .build();
+    }
+
     public Integer saveAttendance(String plant, StaffAttendanceRequestDTO attendanceRequestDTO) {
         Integer result = 0;
+
         try {
             WorkerDTO workerDTO = employeeMasterService.getWorkerByEmpNo(plant, attendanceRequestDTO.getEmpNo());
 
@@ -107,59 +122,56 @@ public class AttendanceService {
 
             if(Objects.equals(attendanceRequestDTO.getAttendanceType(), AttendanceType.PRESENT.name()) || Objects.equals(attendanceRequestDTO.getAttendanceType(), "")) {
 
-                StaffAttendanceDTO latestStaffAttendance = attendanceDao.getStaffAttendanceById(plant, workerDTO.getId());
+                StaffAttendanceDTO latestStaffAttendance = attendanceDao.getStaffAttendanceByEmpId(plant, workerDTO.getId());
 
                 if(latestStaffAttendance != null) {
                     if(Objects.equals(latestStaffAttendance.getShiftStatus(), ShiftStatus.MIN.name())) {
-                        staffAttendance = StaffAttendance.builder()
-                                .plant(plant)
-                                .empId(workerDTO.getId())
-                                .attendanceDate(latestStaffAttendance.getAttendanceDate())
-                                .attendanceTime(attendanceRequestDTO.getAttendanceTime())
-                                .shiftStatus(ShiftStatus.EOUT.name())
-                                .locationLat(attendanceRequestDTO.getLocationLat())
-                                .locationLong(attendanceRequestDTO.getLocationLong())
-                                .build();
+                        staffAttendance = buildStaffAttendance(plant,
+                                workerDTO.getId(),
+                                latestStaffAttendance.getAttendanceDate(),
+                                attendanceRequestDTO.getAttendanceTime(),
+                                ShiftStatus.EOUT.name(),
+                                attendanceRequestDTO.getLocationLat(),
+                                attendanceRequestDTO.getLocationLong()
+                        );
                     } else {
-                        staffAttendance = StaffAttendance.builder()
-                                .plant(plant)
-                                .empId(workerDTO.getId())
-                                .attendanceDate(attendanceRequestDTO.getAttendanceDate())
-                                .attendanceTime(attendanceRequestDTO.getAttendanceTime())
-                                .shiftStatus(ShiftStatus.MIN.name())
-                                .locationLat(attendanceRequestDTO.getLocationLat())
-                                .locationLong(attendanceRequestDTO.getLocationLong())
-                                .build();
+
+                        staffAttendance = buildStaffAttendance(plant,
+                                workerDTO.getId(),
+                                latestStaffAttendance.getAttendanceDate(),
+                                attendanceRequestDTO.getAttendanceTime(),
+                                ShiftStatus.MIN.name(),
+                                attendanceRequestDTO.getLocationLat(),
+                                attendanceRequestDTO.getLocationLong());
                     }
                 } else {
 
-                    staffAttendance = StaffAttendance.builder()
-                            .plant(plant)
-                            .empId(workerDTO.getId())
-                            .attendanceDate(attendanceRequestDTO.getAttendanceDate())
-                            .attendanceTime(attendanceRequestDTO.getAttendanceTime())
-                            .shiftStatus(ShiftStatus.MIN.name())
-                            .locationLat(attendanceRequestDTO.getLocationLat())
-                            .locationLong(attendanceRequestDTO.getLocationLong())
-                            .build();
-
+                    staffAttendance = buildStaffAttendance(plant,
+                            workerDTO.getId(),
+                            attendanceRequestDTO.getAttendanceDate(),
+                            attendanceRequestDTO.getAttendanceTime(),
+                            ShiftStatus.MIN.name(),
+                            attendanceRequestDTO.getLocationLat(),
+                            attendanceRequestDTO.getLocationLong());
                 }
 
-                result = attendanceDao.saveStaffAttendance(plant, staffAttendance);
             } else {
 
-                staffAttendance = StaffAttendance.builder()
-                        .plant(plant)
-                        .empId(workerDTO.getId())
-                        .attendanceDate(attendanceRequestDTO.getAttendanceDate())
-                        .attendanceTime(attendanceRequestDTO.getAttendanceTime())
-                        .shiftStatus(attendanceRequestDTO.getAttendanceType())
-                        .locationLat(attendanceRequestDTO.getLocationLat())
-                        .locationLong(attendanceRequestDTO.getLocationLong())
-                        .build();
+                staffAttendance = buildStaffAttendance(plant,
+                        workerDTO.getId(),
+                        attendanceRequestDTO.getAttendanceDate(),
+                        attendanceRequestDTO.getAttendanceTime(),
+                        attendanceRequestDTO.getAttendanceType(),
+                        attendanceRequestDTO.getLocationLat(),
+                        attendanceRequestDTO.getLocationLong());
 
-                result = attendanceDao.saveStaffAttendance(plant, staffAttendance);
             }
+            ActivityLogModel activityLogModel = new ActivityLogModel();
+            activityLogService.setActivityLogDetails(activityLogModel.setActivityLogModel(
+                    plant, "SAVE_STAFF_ATTENDANCE", "", "", "", 0.0,
+                    workerDTO.getEmpNo(), dateTimeCalc.getTodayDMYDate(), dateTimeCalc.getTodayDMYDate(), workerDTO.getEmpName(),
+                    "CREATED", ""));
+            result = attendanceDao.saveStaffAttendance(plant, staffAttendance);
 
 
         } catch (Exception ex)
@@ -180,41 +192,79 @@ public class AttendanceService {
         }
     }
 
-    public Integer updateAttendance(String plant, AttendanceDTO newAttendance, int id) {
+    public Integer updateAttendance(String plant, int empId, UpdateStaffAttendanceRequestDTO attendanceData) {
         Integer result = 0;
 
         try {
+            List<StaffAttendanceDTO> oldAttendanceDTOList = attendanceDao.getStaffAttendanceListByEmpIdAndDate(plant, empId, attendanceData.getOldAttendanceDate());
+            DateTimeCalc dateTimeCalc = new DateTimeCalc();
 
-            String inTimeDirPath = "C:/U-CLO_IMAGE/ATTENDANCE/VSoftTech/Images/"+ plant +"/IN_TIME/";
-            String outTimeDirPath = "C:/U-CLO_IMAGE/ATTENDANCE/VSoftTech/Images/"+ plant +"/OUT_TIME/";
-
-            AttendanceDTO oldAttendanceDTO = this.getAttendanceById(plant, id);
-
-            if(oldAttendanceDTO == null) {
+            if(oldAttendanceDTOList.isEmpty()) {
                 return result;
             }
 
-            oldAttendanceDTO.setEmpNo(newAttendance.getEmpNo());
-            oldAttendanceDTO.setEmpName(newAttendance.getEmpName());
-            oldAttendanceDTO.setDate(newAttendance.getDate());
-            oldAttendanceDTO.setInTime(newAttendance.getInTime());
-            oldAttendanceDTO.setOutTime(newAttendance.getOutTime());
-            oldAttendanceDTO.setInTimeLocation(newAttendance.getInTimeLocation());
-            oldAttendanceDTO.setOutTimeLocation(newAttendance.getOutTimeLocation());
-            oldAttendanceDTO.setInTimeFace(newAttendance.getInTimeFace());
-            oldAttendanceDTO.setOutTimeFace(newAttendance.getOutTimeFace());
+                if(Objects.equals(attendanceData.getAttendanceType(), AttendanceType.PRESENT.name()) || Objects.equals(attendanceData.getAttendanceType(), "")) {
+                    for(StaffAttendanceDTO oldAttendanceDTO : oldAttendanceDTOList) { // Size: 2 or 1 elements
+                        if(Objects.equals(oldAttendanceDTO.getShiftStatus(), ShiftStatus.MIN.name()) && oldAttendanceDTOList.size() == 1) {
+                            oldAttendanceDTO.setAttendanceDate(attendanceData.getAttendanceDate());
+                            oldAttendanceDTO.setAttendanceTime(attendanceData.getAttendanceInTime());
 
-            if(oldAttendanceDTO.getInTimeFace() != null && oldAttendanceDTO.getInTimeFace().length > 0) {
-                String inTimeFacePath = saveImage(oldAttendanceDTO.getInTimeFace(), inTimeDirPath, "inTimeFace_" + oldAttendanceDTO.getEmpNo() + ".jpg");
-                oldAttendanceDTO.setInTimeFacePath(inTimeFacePath);
+                            StaffAttendance staffAttendance = buildStaffAttendance(plant,
+                                    attendanceData.getEmpId(),
+                                    attendanceData.getAttendanceDate(),
+                                    attendanceData.getAttendanceOutTime(),
+                                    "EOUT",
+                                    oldAttendanceDTO.getLocationLat(),
+                                    oldAttendanceDTO.getLocationLong()
+                            );
+
+                            result = attendanceDao.saveStaffAttendance(plant, staffAttendance);
+                        } else if (Objects.equals(oldAttendanceDTO.getShiftStatus(), AttendanceType.ABSENT.name()) || Objects.equals(oldAttendanceDTO.getShiftStatus(), AttendanceType.COMPOFF.name()) || Objects.equals(oldAttendanceDTO.getShiftStatus(), AttendanceType.HOLIDAY.name()) || Objects.equals(oldAttendanceDTO.getShiftStatus(), AttendanceType.WEEKOFF.name())) {
+                            oldAttendanceDTO.setAttendanceDate(attendanceData.getAttendanceDate());
+                            oldAttendanceDTO.setAttendanceTime(attendanceData.getAttendanceInTime());
+                            oldAttendanceDTO.setShiftStatus(ShiftStatus.MIN.name());
+
+                            StaffAttendance staffAttendance = buildStaffAttendance(plant,
+                                    attendanceData.getEmpId(),
+                                    attendanceData.getAttendanceDate(),
+                                    attendanceData.getAttendanceOutTime(),
+                                    "EOUT",
+                                    "",
+                                    ""
+                            );
+
+                            result = attendanceDao.saveStaffAttendance(plant, staffAttendance);
+                        } else if(Objects.equals(oldAttendanceDTO.getShiftStatus(), ShiftStatus.MIN.name())) {
+                            oldAttendanceDTO.setAttendanceDate(attendanceData.getAttendanceDate());
+                            oldAttendanceDTO.setAttendanceTime(attendanceData.getAttendanceInTime());
+                        } else {
+                            oldAttendanceDTO.setAttendanceDate(attendanceData.getAttendanceDate());
+                            oldAttendanceDTO.setAttendanceTime(attendanceData.getAttendanceOutTime());
+                        }
+                    }
+
+
+
+                } else {
+                    for(StaffAttendanceDTO oldAttendanceDTO : oldAttendanceDTOList) {
+                        oldAttendanceDTO.setShiftStatus(attendanceData.getAttendanceType());
+                        oldAttendanceDTO.setAttendanceTime(null);
+                        oldAttendanceDTO.setLocationLat(null);
+                        oldAttendanceDTO.setLocationLong(null);
+                    }
+
+
+                }
+
+            ActivityLogModel activityLogModel = new ActivityLogModel();
+            activityLogService.setActivityLogDetails(activityLogModel.setActivityLogModel(
+                    plant, "UPDATE_STAFF_ATTENDANCE", "", "", "", 0.0,
+                    attendanceData.getEmpNo(), dateTimeCalc.getTodayDMYDate(), dateTimeCalc.getTodayDMYDate(), attendanceData.getEmpNo(),
+                    "CREATED", ""));
+
+            for (StaffAttendanceDTO staffAttendanceDTO: oldAttendanceDTOList) {
+                result = attendanceDao.updateAttendance(plant, staffAttendanceDTO);
             }
-
-            if(oldAttendanceDTO.getOutTimeFace() != null && oldAttendanceDTO.getOutTimeFace().length > 0) {
-                String outTimeFacePath = saveImage(oldAttendanceDTO.getOutTimeFace(), outTimeDirPath, "outTimeFace_" + oldAttendanceDTO.getEmpNo() + ".jpg");
-                oldAttendanceDTO.setOutTimeFacePath(outTimeFacePath);
-            }
-
-            result = attendanceDao.updateAttendance(plant, id, oldAttendanceDTO);
 
 
         } catch (Exception e) {
@@ -275,10 +325,10 @@ public class AttendanceService {
                 return result;
             }
 
-            boolean isEmployeeExistsInAnotherProject = attendanceDao.checkWorkerInOtherProjects(plant, projectWorkerRequestDTO);
+            boolean isEmployeeExistsInAnotherProject = attendanceDao.checkWorkerInOtherProjects(plant, projectWorkerRequestDTO.getEmpNo(), projectWorkerRequestDTO.getCurrentProjectNo());
 
             if(isEmployeeExistsInAnotherProject) {
-                List<ProjectWorkerList> projectWorkerLists = attendanceDao.getWorkerInOtherProjects(plant, projectWorkerRequestDTO);
+                List<ProjectWorkerList> projectWorkerLists = attendanceDao.getWorkerInOtherProjects(plant, projectWorkerRequestDTO.getEmpNo(), projectWorkerRequestDTO.getCurrentProjectNo());
 
                 for(ProjectWorkerList projectWorkerList: projectWorkerLists) {
                     FinRecycleProjectDTO finRecycleProject = attendanceDao.getFinRecycleProject(plant, projectWorkerList.getProjectNo());
@@ -291,7 +341,12 @@ public class AttendanceService {
                     }
                 }
             }
-
+            DateTimeCalc dateTimeCalc = new DateTimeCalc();
+            ActivityLogModel activityLogModel = new ActivityLogModel();
+            activityLogService.setActivityLogDetails(activityLogModel.setActivityLogModel(
+                    plant, "SAVE_PROJECT_WORKER", "", "", "", 0.0,
+                    projectWorkerRequestDTO.getEmpNo(), dateTimeCalc.getTodayDMYDate(), dateTimeCalc.getTodayDMYDate(), projectWorkerRequestDTO.getEmpName(),
+                    "CREATED", ""));
             projectWorkerSaved = attendanceDao.saveProjectWorker(plant, projectWorkerRequestDTO);
 
             result.put("result", projectWorkerSaved);
@@ -313,5 +368,52 @@ public class AttendanceService {
         }
 
         return projectWorkerDTOList;
+    }
+
+    public ResultDao toggleProjectWorker(String plant, ToggleProjectWorkerDTO toggleProjectWorkerDTO) {
+
+        Integer projectWorkerDisabled = 0;
+        ResultDao resultDao = new ResultDao();
+
+        try {
+            DateTimeCalc dateTimeCalc = new DateTimeCalc();
+            ActivityLogModel activityLogModel = new ActivityLogModel();
+            activityLogService.setActivityLogDetails(activityLogModel.setActivityLogModel(
+                    plant, toggleProjectWorkerDTO.getStatus() == 1 ? "ENABLE_PROJECT_WORKER" : "DISABLE_PROJECT_WORKER", "", "", "", 0.0,
+                    toggleProjectWorkerDTO.getEmpNo(), dateTimeCalc.getTodayDMYDate(), dateTimeCalc.getTodayDMYDate(), toggleProjectWorkerDTO.getEmpNo(),
+                    "CREATED", ""));
+
+            boolean isEmployeeExistsInAnotherProject = attendanceDao.checkWorkerInOtherProjects(plant, toggleProjectWorkerDTO.getEmpNo(), toggleProjectWorkerDTO.getCurrentProjectNo());
+
+            if(isEmployeeExistsInAnotherProject) {
+                List<ProjectWorkerList> projectWorkerLists = attendanceDao.getWorkerInOtherProjects(plant, toggleProjectWorkerDTO.getEmpNo(), toggleProjectWorkerDTO.getCurrentProjectNo());
+
+                for(ProjectWorkerList projectWorkerList: projectWorkerLists) {
+                    FinRecycleProjectDTO finRecycleProject = attendanceDao.getFinRecycleProject(plant, projectWorkerList.getProjectNo());
+
+                    if(Objects.equals(finRecycleProject.getProjectStatus(), "open")) {
+
+
+                        resultDao.setMessage("FAILED");
+                        resultDao.setMessage("The Worker already active in the another project");
+                        resultDao.setStatusCode(HttpStatus.NOT_FOUND.value());
+                        resultDao.setResults(projectWorkerDisabled);
+
+                        return resultDao;
+                    }
+                }
+            }
+
+            projectWorkerDisabled = attendanceDao.toggleProjectWorker(plant, toggleProjectWorkerDTO);
+            resultDao.setMessage("SUCCESS");
+            resultDao.setMessage("Success");
+            resultDao.setStatusCode(HttpStatus.OK.value());
+            resultDao.setResults(projectWorkerDisabled);
+
+
+        } catch (Exception e) {
+            throw new RuntimeException(e.getMessage());
+        }
+        return resultDao;
     }
 }

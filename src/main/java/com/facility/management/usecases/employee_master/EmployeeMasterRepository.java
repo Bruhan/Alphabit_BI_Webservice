@@ -11,6 +11,6 @@ import java.util.List;
 public interface EmployeeMasterRepository extends JpaRepository<EmployeeMaster, Integer> {
     EmployeeMaster findById(int id);
 
-    @Query(value = "select * from ##plant##EMP_MST where EMPNO = ?1",nativeQuery = true)
-    List<EmployeeMaster> findByEmpCode(String empcode);
+    @Query(value = "select * from ##plant##EMP_MST where EMPNO = ?1 AND PLANT = ?2",nativeQuery = true)
+    List<EmployeeMaster> findByEmpCode(String empcode, String plant);
 }

@@ -10,5 +10,6 @@ import java.util.List;
 @Setter
 public class MoveOWCOutcomeRequest {
     String projectNo;
+    String empCode;
     List<MoveOWCOutcomeProductDTO> moveOWCOutcomeProducts;
 }

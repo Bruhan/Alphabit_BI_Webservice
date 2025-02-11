@@ -1,6 +1,7 @@
 package com.facility.management.helpers.utils;
 
 import com.facility.management.persistence.models.EmployeeMaster;
+import com.facility.management.persistence.models.HREmpUserInfo;
 import com.facility.management.persistence.models.UserInfo;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
@@ -67,10 +68,10 @@ public class JwtUtil implements Serializable {
     }
 
     //generate token for user
-    public String generateAccessToken(EmployeeMaster employeeMaster, Map<String, Object> claims) {
-        System.out.println(employeeMaster.getEMPNO());
-        setOrgDetails(employeeMaster.getDEPTARTMENT(), employeeMaster.getEMPNO());
-        return doGenerateToken(claims, employeeMaster.getEMPUSERID(), JWT_TOKEN_VALIDITY);
+    public String generateAccessToken(HREmpUserInfo employeeMaster, Map<String, Object> claims) {
+        System.out.println(employeeMaster.getEmpUserId());
+        setOrgDetails(employeeMaster.getNote(), employeeMaster.getEmpUserId());
+        return doGenerateToken(claims, employeeMaster.getEmpUserId(), JWT_TOKEN_VALIDITY);
     }
 
     public String generateAccessToken(String userName, Map<String, Object> claims) {

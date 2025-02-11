@@ -25,12 +25,12 @@ public class ProjectController {
     @Autowired
     ProjectService projectService;
 
-    @GetMapping("/open-projects/{executiveNo}")
-    public ResponseEntity<Object> getAllOpenProjects(HttpServletRequest request, @PathVariable("executiveNo") String executiveNo) throws Exception {
+    @GetMapping("/executive/open-projects/{executiveNo}")
+    public ResponseEntity<Object> getAllOpenExecutiveProjects(HttpServletRequest request, @PathVariable("executiveNo") String executiveNo) throws Exception {
         ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
         String plant = claimsDao.getPlt();
 
-        List<ProjectDTO> projectDTOList = projectService.getAllOpenProjects(plant, executiveNo);
+        List<ProjectDTO> projectDTOList = projectService.getAllOpenExecutiveProjects(plant, executiveNo, null);
 
         ResultDao resultDao = new ResultDao();
         resultDao.setResults(projectDTOList);
@@ -39,4 +39,66 @@ public class ProjectController {
 
         return new ResponseEntity<>(resultDao, HttpStatus.OK);
     }
+
+    @GetMapping("/executive/open-onsite-projects/{executiveNo}")
+    public ResponseEntity<Object> getAllOpenExecutiveOnSiteProjects(HttpServletRequest request, @PathVariable("executiveNo") String executiveNo) throws Exception {
+        ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
+        String plant = claimsDao.getPlt();
+
+        List<ProjectDTO> projectDTOList = projectService.getAllOpenExecutiveProjects(plant, executiveNo, "on-site");
+
+        ResultDao resultDao = new ResultDao();
+        resultDao.setResults(projectDTOList);
+        resultDao.setStatusCode(HttpStatus.OK.value());
+        resultDao.setMessage("SUCCESS");
+
+        return new ResponseEntity<>(resultDao, HttpStatus.OK);
+    }
+
+    @GetMapping("/executive/open-offsite-projects/{executiveNo}")
+    public ResponseEntity<Object> getAllOpenExecutiveOffSiteProjects(HttpServletRequest request, @PathVariable("executiveNo") String executiveNo) throws Exception {
+        ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
+        String plant = claimsDao.getPlt();
+
+        List<ProjectDTO> projectDTOList = projectService.getAllOpenExecutiveProjects(plant, executiveNo, "off-site");
+
+        ResultDao resultDao = new ResultDao();
+        resultDao.setResults(projectDTOList);
+        resultDao.setStatusCode(HttpStatus.OK.value());
+        resultDao.setMessage("SUCCESS");
+
+        return new ResponseEntity<>(resultDao, HttpStatus.OK);
+    }
+
+
+    @GetMapping("/supervisor/open-onsite-projects/{supervisorNo}")
+    public ResponseEntity<Object> getAllOpenSupervisorOnSiteProjects(HttpServletRequest request, @PathVariable("supervisorNo") String supervisorNo) throws Exception {
+        ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
+        String plant = claimsDao.getPlt();
+
+        List<ProjectDTO> projectDTOList = projectService.getAllOpenSupervisorProjects(plant, supervisorNo, "on-site");
+
+        ResultDao resultDao = new ResultDao();
+        resultDao.setResults(projectDTOList);
+        resultDao.setStatusCode(HttpStatus.OK.value());
+        resultDao.setMessage("SUCCESS");
+
+        return new ResponseEntity<>(resultDao, HttpStatus.OK);
+    }
+
+    @GetMapping("/supervisor/open-offsite-projects/{supervisorNo}")
+    public ResponseEntity<Object> getAllOpenSupervisorOffSiteProjects(HttpServletRequest request, @PathVariable("supervisorNo") String supervisorNo) throws Exception {
+        ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
+        String plant = claimsDao.getPlt();
+
+        List<ProjectDTO> projectDTOList = projectService.getAllOpenSupervisorProjects(plant, supervisorNo, "off-site");
+
+        ResultDao resultDao = new ResultDao();
+        resultDao.setResults(projectDTOList);
+        resultDao.setStatusCode(HttpStatus.OK.value());
+        resultDao.setMessage("SUCCESS");
+
+        return new ResponseEntity<>(resultDao, HttpStatus.OK);
+    }
+
 }

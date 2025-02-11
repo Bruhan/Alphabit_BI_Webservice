@@ -1,5 +1,6 @@
 package com.facility.management.persistence.models;
 
+import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -9,6 +10,7 @@ import javax.persistence.*;
 @Table(name="##plant##DAILY_WASTAGE_DETAILS_DET")
 @Getter
 @Setter
+@Builder
 public class DailyWastageDetailsDET {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

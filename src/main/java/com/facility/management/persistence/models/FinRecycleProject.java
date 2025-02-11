@@ -139,5 +139,7 @@ public class FinRecycleProject {
     @Column(name = "TOTAL_WORKQUOTAMOUNT")
     private double totalWorkQuotAmount;
 
+    @Column(name = "PROJECT_SITETYPE")
+    private String projectSiteType;
 
 }

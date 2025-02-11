@@ -3,6 +3,28 @@ package com.facility.management.usecases.activity_log;
 import com.facility.management.persistence.models.ActivityLog;
 
 public class ActivityLogModel {
+
+    public ActivityLog setActivityLogModel(String plant, String dirType, String ordNum,
+                                           String lnNo, String item, double qty, String cstNo,
+                                           String transactionDate, String createdAt, String createdBy,
+                                           String remarks,String uom) {
+        ActivityLog activityLog = new ActivityLog();
+        activityLog.setPlant(plant);
+        activityLog.setDirType(dirType);
+        activityLog.setOrdNum(ordNum);
+        activityLog.setLnNo(lnNo);
+        activityLog.setItem(item);
+        activityLog.setQty(qty);
+        activityLog.setCustNo(cstNo);
+        activityLog.setTransactionDate(transactionDate);
+        activityLog.setCrAt(createdAt);
+        activityLog.setCrBy(createdBy);
+        activityLog.setRemarks(remarks);
+        activityLog.setUom(uom);
+
+        return activityLog;
+    }
+
     public ActivityLog setActivityLogModel(String plant, String dirType, String ordNum,
                                            String lnNo, String item, double qty, String cstNo,
                                            String transactionDate, String createdAt, String createdBy,
@@ -24,8 +46,8 @@ public class ActivityLogModel {
     }
 
     public ActivityLog setActivityLogModelForStock(String plant, String dirType, String ordNum, String item, double qty, String cstNo,
-                                           String transactionDate, String createdAt, String createdBy,
-                                           String remarks,String movTid,String batch,String lfrom,String lto) {
+                                                   String transactionDate, String createdAt, String createdBy,
+                                                   String remarks,String movTid,String batch,String lfrom,String lto) {
         ActivityLog activityLog = new ActivityLog();
         activityLog.setPlant(plant);
         activityLog.setDirType(dirType);

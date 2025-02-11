@@ -1,6 +1,7 @@
 package com.facility.management.helpers.common.token;
 
 import com.facility.management.persistence.models.EmployeeMaster;
+import com.facility.management.persistence.models.HREmpUserInfo;
 import com.facility.management.usecases.plant.dao.PlantDao;
 import com.facility.management.usecases.plant.dto.PlantDTO;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -30,16 +31,24 @@ public class ClaimsSet {
 //        return true;
 //    }
 
-    public static Map<String, Object> setClaimsDetails(EmployeeMaster empMst, String projectNo, String empUserId) {
+//    public static Map<String, Object> setClaimsDetails(EmployeeMaster empMst, String projectNo, String empUserId) {
+//        Map<String, Object> claims = new HashMap<>();
+//
+//        claims.put("plt", empMst.getPLANT());
+//        claims.put("eid", empMst.getEMPNO());
+//        claims.put("prj", projectNo);
+//        claims.put("usr", empUserId);
+//
+//
+//        return claims;
+//    }
+
+    public static Map<String, Object> setClaimsDetails(HREmpUserInfo empMst, String empUserId) {
         Map<String, Object> claims = new HashMap<>();
 
-
-
-        claims.put("plt", empMst.getPLANT());
-        claims.put("eid", empMst.getEMPNO());
-        claims.put("prj", projectNo);
-        claims.put("usr", empUserId);
-
+        claims.put("plt", empMst.getPlant());
+        claims.put("eid", empUserId);
+        claims.put("usr", empMst.getEmpUserId());
 
         return claims;
     }

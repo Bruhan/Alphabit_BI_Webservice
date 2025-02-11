@@ -8,6 +8,6 @@ public class AuthRequestDTO {
 	private String username;
 	private String password;
 	private String application;
-	private String plant;
+//	private String plant;
 	private String type;
 }

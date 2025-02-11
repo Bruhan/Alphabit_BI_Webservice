@@ -16,4 +16,5 @@ public class ClaimsDao {
     private String prj;
     private String iaslin;
     private String iaslot;
+    private String typ;
 }

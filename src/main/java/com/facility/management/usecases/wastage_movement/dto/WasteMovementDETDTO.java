@@ -1,6 +1,7 @@
 package com.facility.management.usecases.wastage_movement.dto;
 
 import com.facility.management.usecases.wastage_movement.enums.WastageType;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -8,7 +9,9 @@ import java.util.List;
 
 @Getter
 @Setter
+@Builder
 public class WasteMovementDETDTO {
+    private Integer id;
     private String customerId;
     private String customerName;
     private String destination;

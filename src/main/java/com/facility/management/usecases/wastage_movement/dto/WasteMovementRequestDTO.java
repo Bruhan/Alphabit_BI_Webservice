@@ -7,11 +7,14 @@ import java.util.List;
 
 @Getter
 @Setter
-public class WasteMovementRequestDTO {
+public class  WasteMovementRequestDTO {
+    private String empNo;
     private String projectNo;
     private String vehicleNo;
     private String driverNo;
     private String destination;
     private String remarks;
+    private String deliveryChallanNo;
+    private String vehicleType;
     private List<WasteMovementDETDTO> wasteMovementDETList;
 }

@@ -68,9 +68,9 @@ public class ProductRequestDaoImpl implements ProductRequestDao{
             }
 
             for(ProductRequestHdrDTO productRequestHdrDTO : productRequestHdrDTOList) {
-                detSql = "  SELECT pr.PLANT AS plant, pr.ID AS productRequestDetId, i.ITEMDESC AS productName, (SELECT string_agg(ITEMDETAILDESC, '. ') FROM "+ plant +"_ITEMDET_DESC idd " +
+                detSql = "  SELECT pr.PLANT AS plant, pr.ID AS productRequestDetId, pr.ITEM AS item, i.ITEMDESC AS productName, (SELECT string_agg(ITEMDETAILDESC, '. ') FROM "+ plant +"_ITEMDET_DESC idd " +
                         "WHERE idd.ITEM = i.item) AS productDescription, pr.LNSTATUS AS lnStatus, pr.LNNO AS lnNo, pr.UOM AS uom, pr.QTY AS quantity, pr.PROCESSEDQTY AS processedQty " +
-                        ", pr.BALANCEQTY AS balanceQty FROM " + plant + "_PROJECTSTOCKREQUESTDET pr LEFT JOIN " + plant + "_ITEMMST i ON pr.ITEM = i.ITEM WHERE pr.HDRID = :hdrId AND pr.PLANT = :plant";
+                        ", pr.BALANCEQTY AS balanceQty, pr.RECEIVED_QTY, pr.NONRECEIVED_QTY FROM " + plant + "_PROJECTSTOCKREQUESTDET pr LEFT JOIN " + plant + "_ITEMMST i ON pr.ITEM = i.ITEM WHERE pr.HDRID = :hdrId AND pr.PLANT = :plant";
 
                 Query query1 = session.createSQLQuery(detSql);
                 query1.setParameter("hdrId", productRequestHdrDTO.getProductRequestHdrId());
@@ -83,14 +83,17 @@ public class ProductRequestDaoImpl implements ProductRequestDao{
 
                     productRequestDetDTO.setPlant((String) row1[0]);
                     productRequestDetDTO.setProductRequestDetId((int) row1[1]);
-                    productRequestDetDTO.setProductName((String) row1[2]);
-                    productRequestDetDTO.setProductDescription((String) row1[3]);
-                    productRequestDetDTO.setLnStatus(row1[4] != null ? LNStatus.valueOf((String) row1[4]) : null);
-                    productRequestDetDTO.setLnNo((int) row1[5]);
-                    productRequestDetDTO.setUom((String) row1[6]);
-                    productRequestDetDTO.setQuantity((double) row1[7]);
-                    productRequestDetDTO.setProcessedQty((double) row1[8]);
-                    productRequestDetDTO.setBalanceQty((double) row1[9]);
+                    productRequestDetDTO.setItem((String) row1[2]);
+                    productRequestDetDTO.setProductName((String) row1[3]);
+                    productRequestDetDTO.setProductDescription((String) row1[4]);
+                    productRequestDetDTO.setLnStatus(row1[5] != null ? LNStatus.valueOf((String) row1[5]) : null);
+                    productRequestDetDTO.setLnNo((int) row1[6]);
+                    productRequestDetDTO.setUom((String) row1[7]);
+                    productRequestDetDTO.setQuantity((double) row1[8]);
+                    productRequestDetDTO.setProcessedQty((double) row1[9]);
+                    productRequestDetDTO.setBalanceQty((double) row1[10]);
+                    productRequestDetDTO.setReceivedQty((double) row1[11]);
+                    productRequestDetDTO.setNonReceivedQty((double) row1[12]);
 
                     productRequestDetDTOList.add(productRequestDetDTO);
                 }
@@ -138,7 +141,7 @@ public class ProductRequestDaoImpl implements ProductRequestDao{
                 productRequestHdrDTO.setApprovalStatus((ApprovalStatus) row[10]);
                 productRequestHdrDTO.setApproverRemarks((String) row[11]);
 
-                detSql = "  SELECT pr.PLANT AS plant, pr.ID AS productRequestDetId, i.ITEMDESC AS productName, (SELECT string_agg(ITEMDETAILDESC, '. ') FROM "+ plant +"_ITEMDET_DESC idd " +
+                detSql = "  SELECT pr.PLANT AS plant, pr.ID AS productRequestDetId, pr.ITEM AS ITEM, i.ITEMDESC AS productName, (SELECT string_agg(ITEMDETAILDESC, '. ') FROM "+ plant +"_ITEMDET_DESC idd " +
                         "WHERE idd.ITEM = i.item) AS productDescription, pr.LNSTATUS AS lnStatus, pr.LNNO AS lnNo, pr.UOM AS uom, pr.QTY AS quantity, pr.PROCESSEDQTY AS processedQty " +
                         ", pr.BALANCEQTY AS balanceQty FROM " + plant + "_PROJECTSTOCKREQUESTDET pr LEFT JOIN " + plant + "_ITEMMST i ON pr.ITEM = i.ITEM WHERE pr.HDRID = :hdrId AND PLANT = :plant";
 
@@ -153,14 +156,15 @@ public class ProductRequestDaoImpl implements ProductRequestDao{
 
                     productRequestDetDTO.setPlant((String) row1[0]);
                     productRequestDetDTO.setProductRequestDetId((int) row1[1]);
-                    productRequestDetDTO.setProductName((String) row1[2]);
-                    productRequestDetDTO.setProductDescription((String) row1[3]);
-                    productRequestDetDTO.setLnStatus((LNStatus) row1[4]);
-                    productRequestDetDTO.setLnNo((int) row1[5]);
-                    productRequestDetDTO.setUom((String) row1[6]);
-                    productRequestDetDTO.setQuantity((double) row1[7]);
-                    productRequestDetDTO.setProcessedQty((double) row1[8]);
-                    productRequestDetDTO.setBalanceQty((double) row1[9]);
+                    productRequestDetDTO.setItem((String) row1[2]);
+                    productRequestDetDTO.setProductName((String) row1[3]);
+                    productRequestDetDTO.setProductDescription((String) row1[4]);
+                    productRequestDetDTO.setLnStatus(row1[5] != null ? LNStatus.valueOf((String) row1[5]) : null);
+                    productRequestDetDTO.setLnNo((int) row1[6]);
+                    productRequestDetDTO.setUom((String) row1[7]);
+                    productRequestDetDTO.setQuantity((double) row1[8]);
+                    productRequestDetDTO.setProcessedQty((double) row1[9]);
+                    productRequestDetDTO.setBalanceQty((double) row1[10]);
 
                     productRequestDetDTOList.add(productRequestDetDTO);
                 }
@@ -187,8 +191,8 @@ public class ProductRequestDaoImpl implements ProductRequestDao{
         String hdrsql = null;
         try {
             hdrsql = "INSERT INTO " + plant + "_PROJECTSTOCKREQUESTHDR " +
-                "  (PLANT, PROJECTID, PROJECTNO, REQUESTSTATUS, REQUESTEDDATE, REQUESTOR_ID, REQUESTER_REMARKS, APPROVAL_STATUS, CRAT, CRBY, UPAT, UPBY)" +
-                "  VALUES (:plant, :projectId, :projectNo, :requestStatus, :requestedDate, :requestorId, :requesterRemarks, :approvalStatus, :crAt, :crBy, :upAt, :upBy); " +
+                "  (PLANT, PROJECTID, PROJECTNO, REQUESTSTATUS, REQUESTEDDATE, REQUESTOR_ID, REQUESTER_REMARKS, APPROVAL_STATUS, APPROVER_CODE, CRAT, CRBY, UPAT, UPBY)" +
+                "  VALUES (:plant, :projectId, :projectNo, :requestStatus, :requestedDate, :requestorId, :requesterRemarks, :approvalStatus, :approverCode, :crAt, :crBy, :upAt, :upBy); " +
                     "SELECT SCOPE_IDENTITY();";
             session.beginTransaction();
             DateTimeCalc dateTimeCalc = new DateTimeCalc();
@@ -200,6 +204,7 @@ public class ProductRequestDaoImpl implements ProductRequestDao{
             query.setParameter("requestedDate", productRequestHdrDTO.getRequestedDate());
             query.setParameter("requestorId", productRequestHdrDTO.getRequesterId());
             query.setParameter("approvalStatus", productRequestHdrDTO.getApprovalStatus().toString());
+            query.setParameter("approverCode", productRequestHdrDTO.getApproverCode());
             query.setParameter("requesterRemarks", productRequestHdrDTO.getRequesterRemarks());
             query.setParameter("crAt", dateTimeCalc.getTodayDateTime());
             query.setParameter("crBy", productRequestHdrDTO.getRequesterId());
@@ -210,8 +215,8 @@ public class ProductRequestDaoImpl implements ProductRequestDao{
             session.getTransaction().commit();
 
             for(PRDetRequestDTO requestDetDTO: productRequestHdrDTO.getProductRequestDetDTOList()) {
-                String detsql = "INSERT INTO " + plant + "_PROJECTSTOCKREQUESTDET (PLANT, HDRID, LNSTATUS, LNNO, ITEM, UOM, QTY, PROCESSEDQTY, BALANCEQTY, CRAT, CRBY) " +
-                        "  VALUES (:plant, :hdrId, :lnStatus, :lnNo, :item, :uom, :qty, :processedQty, :balanceQty, :crAt, :crBy)";
+                String detsql = "INSERT INTO " + plant + "_PROJECTSTOCKREQUESTDET (PLANT, HDRID, LNSTATUS, LNNO, ITEM, UOM, QTY, PROCESSEDQTY, BALANCEQTY, CRAT, CRBY, RECEIVED_QTY, NONRECEIVED_QTY) " +
+                        "  VALUES (:plant, :hdrId, :lnStatus, :lnNo, :item, :uom, :qty, :processedQty, :balanceQty, :crAt, :crBy, :receivedQty, :nonReceivedQty)";
 
                 session.beginTransaction();
                 Query query1 = session.createSQLQuery(detsql);
@@ -226,6 +231,8 @@ public class ProductRequestDaoImpl implements ProductRequestDao{
                 query1.setParameter("balanceQty", requestDetDTO.getBalanceQty());
                 query1.setParameter("crAt", dateTimeCalc.getTodayDateTime());
                 query1.setParameter("crBy", null);
+                query1.setParameter("receivedQty", requestDetDTO.getReceivedQty());
+                query1.setParameter("nonReceivedQty", requestDetDTO.getNonReceivedQty());
 
                 result = query1.executeUpdate();
                 session.getTransaction().commit();
@@ -280,9 +287,9 @@ public class ProductRequestDaoImpl implements ProductRequestDao{
             }
 
             for(ProductRequestHdrDTO productRequestHdrDTO : productRequestHdrDTOList) {
-                String detSql = "  SELECT pr.PLANT AS plant, pr.ID AS productRequestDetId, i.ITEMDESC AS productName, (SELECT string_agg(ITEMDETAILDESC, '. ') FROM "+ plant +"_ITEMDET_DESC idd " +
+                String detSql = "  SELECT pr.PLANT AS plant, pr.ID AS productRequestDetId, pr.ITEM as item, i.ITEMDESC AS productName, (SELECT string_agg(ITEMDETAILDESC, '. ') FROM "+ plant +"_ITEMDET_DESC idd " +
                         "WHERE idd.ITEM = i.item) AS productDescription, pr.LNSTATUS AS lnStatus, pr.LNNO AS lnNo, pr.UOM AS uom, pr.QTY AS quantity, pr.PROCESSEDQTY AS processedQty " +
-                        ", pr.BALANCEQTY AS balanceQty FROM " + plant + "_PROJECTSTOCKREQUESTDET pr LEFT JOIN " + plant + "_ITEMMST i ON pr.ITEM = i.ITEM WHERE pr.HDRID = :hdrId AND PLANT = :plant";
+                        ", pr.BALANCEQTY AS balanceQty, pr.RECEIVED_QTY, pr.NONRECEIVED_QTY FROM " + plant + "_PROJECTSTOCKREQUESTDET pr LEFT JOIN " + plant + "_ITEMMST i ON pr.ITEM = i.ITEM WHERE pr.HDRID = :hdrId AND PLANT = :plant";
 
                 Query query1 = session.createSQLQuery(detSql);
                 query1.setParameter("hdrId", productRequestHdrDTO.getProjectId());
@@ -295,14 +302,17 @@ public class ProductRequestDaoImpl implements ProductRequestDao{
 
                     productRequestDetDTO.setPlant((String) row1[0]);
                     productRequestDetDTO.setProductRequestDetId((int) row1[1]);
-                    productRequestDetDTO.setProductName((String) row1[2]);
-                    productRequestDetDTO.setProductDescription((String) row1[3]);
-                    productRequestDetDTO.setLnStatus((LNStatus) row1[4]);
-                    productRequestDetDTO.setLnNo((int) row1[5]);
-                    productRequestDetDTO.setUom((String) row1[6]);
-                    productRequestDetDTO.setQuantity((double) row1[7]);
-                    productRequestDetDTO.setProcessedQty((double) row1[8]);
-                    productRequestDetDTO.setBalanceQty((double) row1[9]);
+                    productRequestDetDTO.setItem((String) row1[2]);
+                    productRequestDetDTO.setProductName((String) row1[3]);
+                    productRequestDetDTO.setProductDescription((String) row1[4]);
+                    productRequestDetDTO.setLnStatus(row1[5] != null ? LNStatus.valueOf((String) row1[5]) : null);
+                    productRequestDetDTO.setLnNo((int) row1[6]);
+                    productRequestDetDTO.setUom((String) row1[7]);
+                    productRequestDetDTO.setQuantity((double) row1[8]);
+                    productRequestDetDTO.setProcessedQty((double) row1[9]);
+                    productRequestDetDTO.setBalanceQty((double) row1[10]);
+                    productRequestDetDTO.setReceivedQty((double) row1[11]);
+                    productRequestDetDTO.setNonReceivedQty((double) row1[12]);
 
                     productRequestDetDTOList.add(productRequestDetDTO);
                 }
@@ -318,6 +328,45 @@ public class ProductRequestDaoImpl implements ProductRequestDao{
             session.close();
         }
         return productRequestHdrDTOList;
+    }
+
+    @Override
+    public ProductRequestDetDTO getProductRequestDetByItem(String plant, String item) {
+        ProductRequestDetDTO productRequestDetDTO = null;
+        Session session = sessionFactory.openSession();
+        try {
+            String detSql = "  SELECT TOP 1 pr.PLANT AS plant, pr.ID AS productRequestDetId, pr.ITEM as item, i.ITEMDESC AS productName, (SELECT string_agg(ITEMDETAILDESC, '. ') FROM "+ plant +"_ITEMDET_DESC idd " +
+                    "WHERE idd.ITEM = i.item) AS productDescription, pr.LNSTATUS AS lnStatus, pr.LNNO AS lnNo, pr.UOM AS uom, pr.QTY AS quantity, pr.PROCESSEDQTY AS processedQty " +
+                    ", pr.BALANCEQTY AS balanceQty, pr.RECEIVED_QTY, pr.NONRECEIVED_QTY FROM " + plant + "_PROJECTSTOCKREQUESTDET pr LEFT JOIN " + plant + "_ITEMMST i ON pr.ITEM = i.ITEM WHERE pr.ITEM = :item AND pr.PLANT = :plant";
+
+            Query query1 = session.createSQLQuery(detSql);
+            query1.setParameter("item", item);
+            query1.setParameter("plant", plant);
+
+            Object[] row = (Object[]) query1.uniqueResult();
+            productRequestDetDTO = new ProductRequestDetDTO();
+
+            productRequestDetDTO.setPlant((String) row[0]);
+            productRequestDetDTO.setProductRequestDetId((int) row[1]);
+            productRequestDetDTO.setItem((String) row[2]);
+            productRequestDetDTO.setProductName((String) row[3]);
+            productRequestDetDTO.setProductDescription((String) row[4]);
+            productRequestDetDTO.setLnStatus(row[5] != null ? LNStatus.valueOf((String) row[5]) : null);
+            productRequestDetDTO.setLnNo((int) row[6]);
+            productRequestDetDTO.setUom((String) row[7]);
+            productRequestDetDTO.setQuantity((double) row[8]);
+            productRequestDetDTO.setProcessedQty((double) row[9]);
+            productRequestDetDTO.setBalanceQty((double) row[10]);
+            productRequestDetDTO.setReceivedQty((double) row[11]);
+            productRequestDetDTO.setNonReceivedQty((double) row[12]);
+
+
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            session.close();
+        }
+        return productRequestDetDTO;
     }
 
     @Override
@@ -349,6 +398,39 @@ public class ProductRequestDaoImpl implements ProductRequestDao{
 
         return result;
 
+    }
+
+    @Override
+    public Integer updateProductRequestDET(String plant, ProductRequestDetDTO productRequestDetDTO) {
+        Integer result = 0;
+        Session session = sessionFactory.openSession();
+        String sql = null;
+        try {
+            sql = "UPDATE " + plant + "_PROJECTSTOCKREQUESTDET SET PROCESSEDQTY = :processedQty, BALANCEQTY = :balanceQty, RECEIVED_QTY = :receivedQty, " +
+                    "NONRECEIVED_QTY = :nonReceivedQty, UPAT = :upAt WHERE ID = :detId AND PLANT = :plant";
+            DateTimeCalc dateTimeCalc = new DateTimeCalc();
+
+            session.beginTransaction();
+            Query query = session.createSQLQuery(sql);
+            query.setParameter("processedQty", productRequestDetDTO.getProcessedQty());
+            query.setParameter("balanceQty", productRequestDetDTO.getBalanceQty());
+            query.setParameter("receivedQty", productRequestDetDTO.getReceivedQty());
+            query.setParameter("nonReceivedQty", productRequestDetDTO.getNonReceivedQty());
+            query.setParameter("detId", productRequestDetDTO.getProductRequestDetId());
+            query.setParameter("plant", plant);
+            query.setParameter("upAt", dateTimeCalc.getTodayDMYDate());
+
+            result = query.executeUpdate();
+            session.getTransaction().commit();
+
+        } catch (Exception ex) {
+            session.getTransaction().rollback();
+            throw new RuntimeException(ex);
+        } finally {
+            session.close();
+        }
+
+        return result;
     }
 
     @Override
@@ -477,5 +559,75 @@ public class ProductRequestDaoImpl implements ProductRequestDao{
         }
 
         return productRequestReceiveDTOList;
+    }
+
+    @Override
+    public Integer approveProductRequests(String plant, ApprovePRDTO approvePRDTO) {
+        Session session = sessionFactory.openSession();
+        Integer result = 0;
+        try {
+            String sql = "UPDATE " + plant + "_PROJECTSTOCKREQUESTHDR SET REQUESTSTATUS = :requestStatus, APPROVAL_STATUS = :approvalStatus, " +
+                    "APPROVAL_DATE = :approvalDate , APPROVER_REMARKS = :approverRemarks , APPROVER_CODE = :approverCode " +
+                    "WHERE ID = :id AND PLANT = :plant AND PROJECTNO = :projectNo";
+
+            session.beginTransaction();
+            DateTimeCalc dateTimeCalc = new DateTimeCalc();
+
+            Query query = session.createSQLQuery(sql);
+
+            query.setParameter("requestStatus", approvePRDTO.getIsApproved() == 1 ? RequestStatus.OPEN.name() : RequestStatus.DRAFT.name());
+            query.setParameter("approvalStatus", approvePRDTO.getIsApproved() == 1 ? ApprovalStatus.APPROVED.name() : ApprovalStatus.REJECTED.name());
+            query.setParameter("approvalDate", dateTimeCalc.getTodayDMYDate());
+            query.setParameter("approverRemarks", approvePRDTO.getApproverRemarks());
+            query.setParameter("approverCode", approvePRDTO.getApproverCode());
+            query.setParameter("id", approvePRDTO.getProductRequestHdrId());
+            query.setParameter("plant", plant);
+            query.setParameter("projectNo", approvePRDTO.getProjectNo());
+
+            result = query.executeUpdate();
+            session.getTransaction().commit();
+
+        } catch (Exception ex) {
+            session.getTransaction().rollback();
+            throw new RuntimeException(ex);
+        } finally {
+            session.close();
+        }
+
+        return result;
+    }
+
+    @Override
+    public List<PRNonReceivedDTO> getProductCurrentStock(String plant, String projectNo) {
+        List<PRNonReceivedDTO> prNonReceivedDTOList = null;
+        Session session = sessionFactory.openSession();
+        try {
+            String sql = "SELECT ITEM, QTY, UOM, PROCESSEDQTY, BALANCEQTY, RECEIVED_QTY, NONRECEIVED_QTY FROM " + plant + "_PROJECTSTOCKREQUESTDET WHERE PLANT = :plant";
+            Query query = session.createSQLQuery(sql);
+
+            query.setParameter("plant", plant);
+
+            List<Object[]> rows = query.list();
+            prNonReceivedDTOList = new ArrayList<>();
+            for(Object[] row: rows) {
+                PRNonReceivedDTO prNonReceivedDTO = new PRNonReceivedDTO();
+                prNonReceivedDTO.setItem((String) row[0]);
+                prNonReceivedDTO.setQty(row[1] != null ? (double) row[1] : 0.0);
+                prNonReceivedDTO.setUom((String) row[2]);
+                prNonReceivedDTO.setProcessedQty(row[3] != null ? (double) row[3] : 0.0);
+                prNonReceivedDTO.setBalanceQty(row[4] != null ? (double) row[4] : 0.0);
+                prNonReceivedDTO.setReceivedQty(row[5] != null ? (double) row[5] : 0.0);
+                prNonReceivedDTO.setNonReceivedQty(row[6] != null ? (double) row[6] : 0.0);
+                prNonReceivedDTO.setProjectNo(projectNo);
+
+                prNonReceivedDTOList.add(prNonReceivedDTO);
+            }
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            session.close();
+        }
+
+        return prNonReceivedDTOList;
     }
 }

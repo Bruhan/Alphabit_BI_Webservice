@@ -1,20 +1,13 @@
 package com.facility.management.usecases.attendance.dao;
 
 import com.facility.management.helpers.common.calc.DateTimeCalc;
-import com.facility.management.persistence.models.FinRecycleProject;
 import com.facility.management.persistence.models.ProjectWorkerList;
 import com.facility.management.persistence.models.StaffAttendance;
 import com.facility.management.usecases.attendance.dto.*;
-import com.facility.management.usecases.attendance.enums.ShiftStatus;
 import com.facility.management.usecases.attendance.exception.ShouldNotBeNullException;
-import com.facility.management.usecases.attendance.pojo.AttendancePojo;
-import com.facility.management.usecases.product_request.enums.ApprovalStatus;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
 import org.hibernate.query.Query;
-import org.hibernate.transform.Transformers;
-import org.modelmapper.ModelMapper;
-import org.modelmapper.TypeToken;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
@@ -30,8 +23,6 @@ import java.sql.Timestamp;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Date;
 import java.util.List;
 
 @Repository("AttendanceDao")
@@ -325,33 +316,68 @@ public class AttendanceDaoImpl implements AttendanceDao{
     }
 
     @Override
-    public Integer updateAttendance(String plant, int id, AttendanceDTO attendanceDTO) throws ParseException {
+    public Integer updateAttendance(String plant, StaffAttendanceDTO attendanceDTO) throws ParseException {
         Session session = sessionFactory.openSession();
         Integer val = 0;
 
         try {
-            String sql = "UPDATE [" + plant + "_ATTENDANCE_SUMMARY] " +
-                    "SET IN_TIME = :inTime, OUT_TIME = :outTime, IN_TIME_LOCATION = :inTimeLocation, " +
-                    "OUT_TIME_LOCATION = :outTimeLocation, IN_TIME_FACE_PATH = :inTimeFacePath, " +
-                    "OUT_TIME_FACE_PATH = :outTimeFacePath, DATE = :date, UPAT = :upAt," +
-                    "UPBY = :upBy WHERE ID = :id";
-            DateTimeCalc dateTimeCalc = new DateTimeCalc();
 
-            session.beginTransaction();
-            Query query = session.createSQLQuery(sql);
-            query.setParameter("inTime", attendanceDTO.getInTime());
-            query.setParameter("outTime", attendanceDTO.getOutTime());
-            query.setParameter("inTimeLocation", attendanceDTO.getInTimeLocation());
-            query.setParameter("outTimeLocation", attendanceDTO.getOutTimeLocation());
-            query.setParameter("inTimeFacePath", attendanceDTO.getInTimeFacePath());
-            query.setParameter("outTimeFacePath", attendanceDTO.getOutTimeFacePath());
-            query.setParameter("date", attendanceDTO.getDate());
-            query.setParameter("upAt", dateTimeCalc.getTodayDateTime());
-            query.setParameter("upBy", attendanceDTO.getEmpNo());
-            query.setParameter("id", id);
+            if(attendanceDTO.getAttendanceTime() != null) {
 
-            val = query.executeUpdate();
-            session.getTransaction().commit();
+                String sql = "UPDATE [" + plant + "_Staffattendance] " +
+                        "SET Att_Date = :attDate, Att_Time = :attTime, ShiftStatus = :shiftStatus, " +
+                        "Location_Lat = :locationLat, Location_Long = :locationLong " +
+                        "WHERE ID = :id";
+                DateTimeCalc dateTimeCalc = new DateTimeCalc();
+
+                session.beginTransaction();
+                Query query = session.createSQLQuery(sql);
+
+                SimpleDateFormat dateFormat = new SimpleDateFormat("dd-MM-yyyy");
+                java.util.Date parsedDate = dateFormat.parse(attendanceDTO.getAttendanceDate());
+
+                SimpleDateFormat dateTimeFormat = new SimpleDateFormat("dd-MM-yyyy'T'HH:mm:ss");
+                java.util.Date parsedDateTime = dateTimeFormat.parse(attendanceDTO.getAttendanceTime());
+
+                java.sql.Date sqlDate = new java.sql.Date(parsedDate.getTime());  // For attendanceDate
+                Timestamp sqlTimestamp = new Timestamp(parsedDateTime.getTime());
+
+                query.setParameter("attDate", sqlDate);
+                query.setParameter("attTime", sqlTimestamp);
+                query.setParameter("shiftStatus", attendanceDTO.getShiftStatus());
+                query.setParameter("locationLat", attendanceDTO.getLocationLat());
+                query.setParameter("locationLong", attendanceDTO.getLocationLong());
+                query.setParameter("id", attendanceDTO.getId());
+
+                val = query.executeUpdate();
+                session.getTransaction().commit();
+            } else {
+                String sql = "UPDATE [" + plant + "_Staffattendance] " +
+                        "SET Att_Date = :attDate, ShiftStatus = :shiftStatus, " +
+                        "Location_Lat = :locationLat, Location_Long = :locationLong " +
+                        "WHERE ID = :id";
+                DateTimeCalc dateTimeCalc = new DateTimeCalc();
+
+                session.beginTransaction();
+                Query query = session.createSQLQuery(sql);
+
+                SimpleDateFormat dateFormat = new SimpleDateFormat("dd-MM-yyyy");
+                java.util.Date parsedDate = dateFormat.parse(attendanceDTO.getAttendanceDate());
+
+
+                java.sql.Date sqlDate = new java.sql.Date(parsedDate.getTime());
+
+                query.setParameter("attDate", sqlDate);
+                query.setParameter("shiftStatus", attendanceDTO.getShiftStatus());
+                query.setParameter("locationLat", attendanceDTO.getLocationLat());
+                query.setParameter("locationLong", attendanceDTO.getLocationLong());
+                query.setParameter("id", attendanceDTO.getId());
+
+                val = query.executeUpdate();
+                session.getTransaction().commit();
+            }
+
+
         } catch (Exception ex) {
             session.getTransaction().rollback();
             throw ex;
@@ -419,13 +445,13 @@ public class AttendanceDaoImpl implements AttendanceDao{
     }
 
     @Override
-    public StaffAttendanceDTO getStaffAttendanceById(String plant, int id) {
+    public StaffAttendanceDTO getStaffAttendanceByEmpId(String plant, int id) {
         Session session = sessionFactory.openSession();
         String sql = null;
         StaffAttendanceDTO staffAttendanceDTO = null;
         try {
             sql = "SELECT TOP (1) PLANT, ID, EMPID, Att_Date, Att_Time, ShiftStatus, Location_Lat, Location_Long FROM " + plant + "_Staffattendance " +
-                    "WHERE PLANT = :plant AND EMPID = :empId ORDER BY Att_Time DESC";
+                    "WHERE PLANT = :plant AND EMPID = :empId AND Att_Date = CAST(GETDATE() AS DATE) ORDER BY Att_Time DESC";
 
             Query query = session.createSQLQuery(sql);
             query.setParameter("plant", plant);
@@ -438,8 +464,8 @@ public class AttendanceDaoImpl implements AttendanceDao{
                 staffAttendanceDTO.setPlant((String) row[0]);
                 staffAttendanceDTO.setId((BigInteger) row[1]);
                 staffAttendanceDTO.setEmpId((BigInteger) row[2]);
-                staffAttendanceDTO.setAttendanceDate(new SimpleDateFormat("dd-MM-yyyy").format((java.util.Date) row[3]));
-                staffAttendanceDTO.setAttendanceTime(new SimpleDateFormat("dd-MM-yyyy'T'HH:mm:ss").format((java.util.Date) row[4]));
+                staffAttendanceDTO.setAttendanceDate(row[3] != null ? new SimpleDateFormat("dd-MM-yyyy").format((java.util.Date) row[3]) : null);
+                staffAttendanceDTO.setAttendanceTime(row[4] != null ? new SimpleDateFormat("dd-MM-yyyy'T'HH:mm:ss").format((java.util.Date) row[4]) : null);
                 staffAttendanceDTO.setShiftStatus((String) row[5]);
                 staffAttendanceDTO.setLocationLat((String) row[6]);
                 staffAttendanceDTO.setLocationLong((String) row[7]);
@@ -452,6 +478,57 @@ public class AttendanceDaoImpl implements AttendanceDao{
             session.close();
         }
         return staffAttendanceDTO;
+    }
+
+    @Override
+    public List<StaffAttendanceDTO> getStaffAttendanceListByEmpIdAndDate(String plant, int empId, String date) throws ParseException {
+        Session session = sessionFactory.openSession();
+        String sql = null;
+        List<StaffAttendanceDTO> staffAttendanceDTOList = null;
+        try {
+            sql = "SELECT TOP (2) PLANT, ID, EMPID, Att_Date, Att_Time, ShiftStatus, Location_Lat, Location_Long FROM " + plant + "_Staffattendance " +
+                    "WHERE PLANT = :plant AND EMPID = :empId AND Att_Date = :date";
+
+            Query query = session.createSQLQuery(sql);
+            SimpleDateFormat dateFormat = new SimpleDateFormat("dd-MM-yyyy");
+
+            query.setParameter("plant", plant);
+            query.setParameter("empId", empId);
+
+            if(!date.isEmpty()) {
+                java.util.Date parsedDate = dateFormat.parse(date);
+                java.sql.Date sqlDate = new java.sql.Date(parsedDate.getTime());
+                query.setParameter("date", sqlDate);
+            } else {
+                query.setParameter("date", "");
+            }
+
+
+            List<Object[]> rows = query.list();
+
+            staffAttendanceDTOList = new ArrayList<>();
+
+           for(Object[] row: rows) {
+                StaffAttendanceDTO staffAttendanceDTO = new StaffAttendanceDTO();
+                staffAttendanceDTO.setPlant((String) row[0]);
+                staffAttendanceDTO.setId((BigInteger) row[1]);
+                staffAttendanceDTO.setEmpId((BigInteger) row[2]);
+                staffAttendanceDTO.setAttendanceDate(row[3] != null ? new SimpleDateFormat("dd-MM-yyyy").format((java.util.Date) row[3]) : null);
+                staffAttendanceDTO.setAttendanceTime(row[4] != null ? new SimpleDateFormat("dd-MM-yyyy'T'HH:mm:ss").format((java.util.Date) row[4]) : null);
+                staffAttendanceDTO.setShiftStatus((String) row[5]);
+                staffAttendanceDTO.setLocationLat((String) row[6]);
+                staffAttendanceDTO.setLocationLong((String) row[7]);
+
+                staffAttendanceDTOList.add(staffAttendanceDTO);
+
+            }
+
+        } catch (Exception ex) {
+            throw ex;
+        } finally {
+            session.close();
+        }
+        return staffAttendanceDTOList;
     }
 
     @Override
@@ -617,17 +694,18 @@ public class AttendanceDaoImpl implements AttendanceDao{
     }
 
     @Override
-    public boolean checkWorkerInOtherProjects(String plant, ProjectWorkerRequestDTO projectWorkerRequestDTO) {
+    public boolean checkWorkerInOtherProjects(String plant, String empNo, String projectNo) {
         boolean recordExists = false;
         Session session = sessionFactory.openSession();
         try {
-            String sql = "SELECT COUNT(*) FROM " + plant + "_PROJECT_WORKERLIST WHERE plant = :plant AND EMPCODE = :empCode AND PROJECTNO != :projectNo";
+            String sql = "SELECT COUNT(*) FROM " + plant + "_PROJECT_WORKERLIST WHERE plant = :plant AND EMPCODE = :empCode AND PROJECTNO != :projectNo AND STATUS = :status";
 
             Query query = session.createSQLQuery(sql);
 
             query.setParameter("plant", plant);
-            query.setParameter("empCode", projectWorkerRequestDTO.getEmpNo());
-            query.setParameter("projectNo", projectWorkerRequestDTO.getCurrentProjectNo());
+            query.setParameter("empCode", empNo);
+            query.setParameter("projectNo", projectNo);
+            query.setParameter("status", 1);
 
             Long count = ((Number) query.uniqueResult()).longValue();
 
@@ -643,7 +721,7 @@ public class AttendanceDaoImpl implements AttendanceDao{
     }
 
     @Override
-    public List<ProjectWorkerList> getWorkerInOtherProjects(String plant, ProjectWorkerRequestDTO projectWorkerRequestDTO) {
+    public List<ProjectWorkerList> getWorkerInOtherProjects(String plant, String empNo, String projectNo) {
         List<ProjectWorkerList> projectWorkerLists = null;
         Session session = sessionFactory.openSession();
         try {
@@ -654,8 +732,8 @@ public class AttendanceDaoImpl implements AttendanceDao{
             Query query = session.createSQLQuery(sql);
 
             query.setParameter("plant", plant);
-            query.setParameter("empCode", projectWorkerRequestDTO.getEmpNo());
-            query.setParameter("projectNo", projectWorkerRequestDTO.getCurrentProjectNo());
+            query.setParameter("empCode", empNo);
+            query.setParameter("projectNo", projectNo);
 
             List<Object[]> rows = query.list();
 
@@ -760,8 +838,7 @@ public class AttendanceDaoImpl implements AttendanceDao{
         Session session = sessionFactory.openSession();
         List<ProjectWorkerDTO> projectWorkerDTOList = null;
         try {
-            String sql = "SELECT [PLANT] ,[ID] ,[PROJECTNO] ,[EMPID] ,[EMPCODE] ,[EMPNAME] ,[PROJECTIN_DATE] " +
-                    ",[PROJECTOUT_DATE] ,[STATUS] FROM " + plant + "_PROJECT_WORKERLIST " +
+            String sql = "SELECT [PLANT] ,[ID] ,[PROJECTNO] ,[EMPID] ,[EMPCODE] ,[EMPNAME] ,[STATUS] FROM " + plant + "_PROJECT_WORKERLIST " +
                     "WHERE plant = :plant AND PROJECTNO = :projectNo";
 
             Query query = session.createSQLQuery(sql);
@@ -780,9 +857,9 @@ public class AttendanceDaoImpl implements AttendanceDao{
                 projectWorkerDTO.setEmpId((BigInteger) row[3]);
                 projectWorkerDTO.setEmpCode((String) row[4]);
                 projectWorkerDTO.setEmpName((String) row[5]);
-                projectWorkerDTO.setProjectInDate(row[6] != null ? new SimpleDateFormat("dd-MM-yyyy").format((java.util.Date) row[6]) : null);
-                projectWorkerDTO.setProjectOutDate(row[7] != null ? new SimpleDateFormat("dd-MM-yyyy").format((java.util.Date) row[7]) : null);
-                projectWorkerDTO.setStatus(row[8] != null ? (Byte) row[8] : 0);
+//                projectWorkerDTO.setProjectInDate(row[6] != null ? new SimpleDateFormat("dd-MM-yyyy").format((java.util.Date) row[6]) : null);
+//                projectWorkerDTO.setProjectOutDate(row[7] != null ? new SimpleDateFormat("dd-MM-yyyy").format((java.util.Date) row[7]) : null);
+                projectWorkerDTO.setStatus(row[6] != null ? (Byte) row[6] : 0);
 
                 projectWorkerDTOList.add(projectWorkerDTO);
             }
@@ -795,4 +872,37 @@ public class AttendanceDaoImpl implements AttendanceDao{
         }
         return projectWorkerDTOList;
     }
+
+    @Override
+    public Integer toggleProjectWorker(String plant, ToggleProjectWorkerDTO toggleProjectWorkerDTO) {
+        Session session = sessionFactory.openSession();
+        Integer result = 0;
+        try {
+            String sql = "UPDATE [" + plant + "_PROJECT_WORKERLIST] SET STATUS = :status, UPAT = :upAt WHERE " +
+                    "PROJECTNO = :projectNo AND EMPID = :empId AND PLANT = :plant";
+
+            session.beginTransaction();
+            Query query = session.createSQLQuery(sql);
+            DateTimeCalc dateTimeCalc = new DateTimeCalc();
+
+            query.setParameter("plant", plant);
+            query.setParameter("projectNo", toggleProjectWorkerDTO.getCurrentProjectNo());
+            query.setParameter("empId", toggleProjectWorkerDTO.getEmpId());
+            query.setParameter("status", toggleProjectWorkerDTO.getStatus());
+            query.setParameter("upAt", dateTimeCalc.getTodayDateTime());
+
+            result = query.executeUpdate();
+            session.getTransaction().commit();
+
+
+        } catch (Exception ex) {
+            session.getTransaction().rollback();
+            throw ex;
+        } finally {
+            session.close();
+        }
+
+        return result;
+    }
+
 }
