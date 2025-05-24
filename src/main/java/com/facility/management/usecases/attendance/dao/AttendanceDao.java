@@ -24,7 +24,7 @@ public interface AttendanceDao {
     List<AttendanceDTO> getTodayAttendance(String plant) throws IOException;
 
 
-    StaffAttendanceDTO getStaffAttendanceByEmpId(String plant, int id);
+    StaffAttendanceDTO getStaffAttendanceByEmpId(String plant, int id, String attendanceDate, int isExecutive) throws ParseException;
 
     List<StaffAttendanceDTO> getStaffAttendanceListByEmpIdAndDate(String plant, int id, String date) throws ParseException;
 
@@ -38,10 +38,11 @@ public interface AttendanceDao {
 
     FinRecycleProjectDTO getFinRecycleProject(String plant, String projectNo);
 
-    Integer saveProjectWorker(String plant, ProjectWorkerRequestDTO projectWorkerRequestDTO);
+    Integer saveProjectWorker(String plant, ProjectWorkerRequestDTO projectWorkerRequestDTO) throws ParseException;
 
     List<ProjectWorkerDTO> getAllProjectWorkers(String plant, String projectNo);
 
-    Integer toggleProjectWorker(String plant, ToggleProjectWorkerDTO toggleProjectWorkerDTO);
+    Integer toggleProjectWorker(String plant, ToggleProjectWorkerDTO toggleProjectWorkerDTO) throws ParseException;
 
+    List<AttendanceCalendarResponseDTO> hasAttendance(String plant, String projectNo, CalendarRequestDTO calendarRequestDTO) throws ParseException;
 }

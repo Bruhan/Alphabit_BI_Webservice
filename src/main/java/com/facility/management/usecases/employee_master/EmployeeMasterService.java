@@ -4,8 +4,11 @@ import com.facility.management.persistence.models.EmployeeMaster;
 import com.facility.management.usecases.employee_master.dao.EmployeeMasterDao;
 import com.facility.management.usecases.employee_master.dto.WorkerDTO;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 
+import java.nio.file.Files;
 import java.util.List;
 
 @Service
@@ -49,10 +52,11 @@ public class EmployeeMasterService {
         return employeeMaster;
     }
 
-    public List<EmployeeMaster> findByEmpCode(String empcode, String plant) throws Exception {
-        List<EmployeeMaster> employeeMaster;
+    public EmployeeMaster findByEmpCode(String empcode, String plant) throws Exception {
+        EmployeeMaster employeeMaster;
         try {
             employeeMaster = employeeMasterRepository.findByEmpCode(empcode, plant);
+
         }catch (Exception e){
             throw new Exception(e);
         }

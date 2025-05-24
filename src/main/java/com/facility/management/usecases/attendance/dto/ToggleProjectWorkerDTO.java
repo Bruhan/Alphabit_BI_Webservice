@@ -9,7 +9,8 @@ import java.math.BigInteger;
 @Setter
 public class ToggleProjectWorkerDTO {
     private String plant;
-    String currentProjectNo;
+    private String currentProjectNo;
+    private String date;
     private BigInteger empId;
     private String empNo;
     private int status;

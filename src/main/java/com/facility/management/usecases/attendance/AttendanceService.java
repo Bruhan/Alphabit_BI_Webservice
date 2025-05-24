@@ -122,10 +122,10 @@ public class AttendanceService {
 
             if(Objects.equals(attendanceRequestDTO.getAttendanceType(), AttendanceType.PRESENT.name()) || Objects.equals(attendanceRequestDTO.getAttendanceType(), "")) {
 
-                StaffAttendanceDTO latestStaffAttendance = attendanceDao.getStaffAttendanceByEmpId(plant, workerDTO.getId());
+                StaffAttendanceDTO latestStaffAttendance = attendanceDao.getStaffAttendanceByEmpId(plant, workerDTO.getId(), attendanceRequestDTO.getAttendanceDate(), attendanceRequestDTO.getIsExecutive());
 
                 if(latestStaffAttendance != null) {
-                    if(Objects.equals(latestStaffAttendance.getShiftStatus(), ShiftStatus.MIN.name())) {
+                         if(Objects.equals(latestStaffAttendance.getShiftStatus(), ShiftStatus.MIN.name())) {
                         staffAttendance = buildStaffAttendance(plant,
                                 workerDTO.getId(),
                                 latestStaffAttendance.getAttendanceDate(),
@@ -206,12 +206,12 @@ public class AttendanceService {
                 if(Objects.equals(attendanceData.getAttendanceType(), AttendanceType.PRESENT.name()) || Objects.equals(attendanceData.getAttendanceType(), "")) {
                     for(StaffAttendanceDTO oldAttendanceDTO : oldAttendanceDTOList) { // Size: 2 or 1 elements
                         if(Objects.equals(oldAttendanceDTO.getShiftStatus(), ShiftStatus.MIN.name()) && oldAttendanceDTOList.size() == 1) {
-                            oldAttendanceDTO.setAttendanceDate(attendanceData.getAttendanceDate());
+//                            oldAttendanceDTO.setAttendanceDate(attendanceData.getAttendanceDate());
                             oldAttendanceDTO.setAttendanceTime(attendanceData.getAttendanceInTime());
 
                             StaffAttendance staffAttendance = buildStaffAttendance(plant,
                                     attendanceData.getEmpId(),
-                                    attendanceData.getAttendanceDate(),
+                                    oldAttendanceDTO.getAttendanceDate(),
                                     attendanceData.getAttendanceOutTime(),
                                     "EOUT",
                                     oldAttendanceDTO.getLocationLat(),
@@ -415,5 +415,16 @@ public class AttendanceService {
             throw new RuntimeException(e.getMessage());
         }
         return resultDao;
+    }
+
+    public List<AttendanceCalendarResponseDTO> hasAttendance(String plant, String projectNo, CalendarRequestDTO calendarRequestDTO) {
+        List<AttendanceCalendarResponseDTO> result = null;
+        try {
+            result = attendanceDao.hasAttendance(plant, projectNo, calendarRequestDTO);
+        } catch (Exception e) {
+            throw new RuntimeException(e.getMessage());
+        }
+
+        return result;
     }
 }

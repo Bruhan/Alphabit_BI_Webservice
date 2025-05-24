@@ -4,6 +4,7 @@ import com.facility.management.helpers.common.calc.DateTimeCalc;
 import com.facility.management.persistence.models.DailyWastageDetailsHDR;
 import com.facility.management.usecases.dashboard.dto.*;
 import com.facility.management.usecases.dashboard.enums.OWCMachineStatus;
+import com.facility.management.usecases.wastage.enums.WastageType;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,7 +26,7 @@ public class DashboardDaoImpl implements DashboardDao {
         Session session = sessionFactory.openSession();
         EmployeeDetailDTO employeeDetailDTO = null;
         try {
-            String sql = "SELECT CONCAT(FNAME, ' ', LNAME), EMPNO FROM " + plant + "_EMP_MST WHERE EMPNO = :empNo AND" +
+            String sql = "SELECT CONCAT(FNAME, ' ', LNAME), EMPNO, CATLOGPATH FROM " + plant + "_EMP_MST WHERE EMPNO = :empNo AND" +
                     " PLANT = :plant";
             Query query = session.createSQLQuery(sql);
 
@@ -38,6 +39,7 @@ public class DashboardDaoImpl implements DashboardDao {
                 employeeDetailDTO = new EmployeeDetailDTO();
                 employeeDetailDTO.setEmployeeName((String) row[0]);
                 employeeDetailDTO.setEmployeeId((String) row[1]);
+                employeeDetailDTO.setEmployeeImagePath((String) row[2]);
             }
 
 
@@ -56,7 +58,7 @@ public class DashboardDaoImpl implements DashboardDao {
         Session session = sessionFactory.openSession();
         ProjectDetailDTO projectDetailDTO = null;
         try {
-            String sql = "SELECT PROJ.PROJECT, PROJ.PROJECT_NAME, LOC.LOCDESC FROM " + plant + "_FINRECYCLEPROJECT PROJ LEFT JOIN " + plant + "_LOCMST LOC ON PROJ.LOC = LOC.LOC WHERE PROJ.PROJECT = :projectNo AND " +
+            String sql = "SELECT PROJ.PROJECT, PROJ.CUSTPRNO, PROJ.PROJECT_NAME, LOC.LOCDESC FROM " + plant + "_FINRECYCLEPROJECT PROJ LEFT JOIN " + plant + "_LOCMST LOC ON PROJ.LOC = LOC.LOC WHERE PROJ.PROJECT = :projectNo AND " +
                     "PROJ.PLANT = :plant";
 
             Query query = session.createSQLQuery(sql);
@@ -68,8 +70,9 @@ public class DashboardDaoImpl implements DashboardDao {
             if(row != null) {
                 projectDetailDTO = new ProjectDetailDTO();
                 projectDetailDTO.setProjectNo((String) row[0]);
-                projectDetailDTO.setProjectName((String) row[1]);
-                projectDetailDTO.setLocation((String) row[2]);
+                projectDetailDTO.setCustomerProjectNo((String) row[1]);
+                projectDetailDTO.setProjectName((String) row[2]);
+                projectDetailDTO.setLocation((String) row[3]);
             }
 
 
@@ -96,6 +99,171 @@ public class DashboardDaoImpl implements DashboardDao {
             query.setParameter("plant", plant);
             query.setParameter("fromDate", fromDate);
             query.setParameter("toDate", toDate);
+
+            Object[] row = (Object[]) query.uniqueResult();
+
+
+            totalWastageDTO = new TotalWastageDTO();
+            totalWastageDTO.setQty(row != null ? (double) row[0] : 0.0);
+            totalWastageDTO.setUom(row != null ? (String) row[1] : "KGS");
+
+
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            session.close();
+        }
+
+        return totalWastageDTO;
+    }
+
+    @Override
+    public TotalWastageDTO getTotalOrganicWastage(String plant, String projectNo, String fromDate, String toDate) {
+        Session session = sessionFactory.openSession();
+        TotalWastageDTO totalWastageDTO = null;
+        try {
+            String sql = "SELECT TOP 1 SUM(WASTAGE_QTY), WASTAGE_UOM FROM " + plant + "_DAILY_WASTAGE_DETAILS_DET WHERE " +
+                    "(DATE BETWEEN :fromDate AND :toDate) AND PROJECTNO = :projectNo AND PLANT = :plant AND WASTAGE_TYPE = :wastageType GROUP BY " +
+                    "WASTAGE_UOM";
+
+            Query query = session.createSQLQuery(sql);
+            query.setParameter("projectNo", projectNo);
+            query.setParameter("plant", plant);
+            query.setParameter("fromDate", fromDate);
+            query.setParameter("toDate", toDate);
+            query.setParameter("wastageType", WastageType.ORGANIC_WASTE.name());
+
+            Object[] row = (Object[]) query.uniqueResult();
+
+
+            totalWastageDTO = new TotalWastageDTO();
+            totalWastageDTO.setQty(row != null ? (double) row[0] : 0.0);
+            totalWastageDTO.setUom(row != null ? (String) row[1] : "KGS");
+
+
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            session.close();
+        }
+
+        return totalWastageDTO;
+    }
+
+    @Override
+    public TotalWastageDTO getTotalInorganicWastage(String plant, String projectNo, String fromDate, String toDate) {
+        Session session = sessionFactory.openSession();
+        TotalWastageDTO totalWastageDTO = null;
+        try {
+            String sql = "SELECT TOP 1 SUM(WASTAGE_QTY), WASTAGE_UOM FROM " + plant + "_DAILY_WASTAGE_DETAILS_DET WHERE " +
+                    "(DATE BETWEEN :fromDate AND :toDate) AND PROJECTNO = :projectNo AND PLANT = :plant AND WASTAGE_TYPE = :wastageType GROUP BY " +
+                    "WASTAGE_UOM";
+
+            Query query = session.createSQLQuery(sql);
+            query.setParameter("projectNo", projectNo);
+            query.setParameter("plant", plant);
+            query.setParameter("fromDate", fromDate);
+            query.setParameter("toDate", toDate);
+            query.setParameter("wastageType", WastageType.INORGANIC_WASTE.name());
+
+            Object[] row = (Object[]) query.uniqueResult();
+
+
+            totalWastageDTO = new TotalWastageDTO();
+            totalWastageDTO.setQty(row != null ? (double) row[0] : 0.0);
+            totalWastageDTO.setUom(row != null ? (String) row[1] : "KGS");
+
+
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            session.close();
+        }
+
+        return totalWastageDTO;
+    }
+
+    @Override
+    public TotalWastageDTO getTotalRejectedWastage(String plant, String projectNo, String fromDate, String toDate) {
+        Session session = sessionFactory.openSession();
+        TotalWastageDTO totalWastageDTO = null;
+        try {
+            String sql = "SELECT TOP 1 SUM(WASTAGE_QTY), WASTAGE_UOM FROM " + plant + "_DAILY_WASTAGE_DETAILS_DET WHERE " +
+                    "(DATE BETWEEN :fromDate AND :toDate) AND PROJECTNO = :projectNo AND PLANT = :plant AND WASTAGE_TYPE = :wastageType GROUP BY " +
+                    "WASTAGE_UOM";
+
+            Query query = session.createSQLQuery(sql);
+            query.setParameter("projectNo", projectNo);
+            query.setParameter("plant", plant);
+            query.setParameter("fromDate", fromDate);
+            query.setParameter("toDate", toDate);
+            query.setParameter("wastageType", WastageType.REJECTED_WASTE.name());
+
+            Object[] row = (Object[]) query.uniqueResult();
+
+
+            totalWastageDTO = new TotalWastageDTO();
+            totalWastageDTO.setQty(row != null ? (double) row[0] : 0.0);
+            totalWastageDTO.setUom(row != null ? (String) row[1] : "KGS");
+
+
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            session.close();
+        }
+
+        return totalWastageDTO;
+    }
+
+    @Override
+    public TotalWastageDTO getTotalDebrisWastage(String plant, String projectNo, String fromDate, String toDate) {
+        Session session = sessionFactory.openSession();
+        TotalWastageDTO totalWastageDTO = null;
+        try {
+            String sql = "SELECT TOP 1 SUM(WASTAGE_QTY), WASTAGE_UOM FROM " + plant + "_DAILY_WASTAGE_DETAILS_DET WHERE " +
+                    "(DATE BETWEEN :fromDate AND :toDate) AND PROJECTNO = :projectNo AND PLANT = :plant AND WASTAGE_TYPE = :wastageType GROUP BY " +
+                    "WASTAGE_UOM";
+
+            Query query = session.createSQLQuery(sql);
+            query.setParameter("projectNo", projectNo);
+            query.setParameter("plant", plant);
+            query.setParameter("fromDate", fromDate);
+            query.setParameter("toDate", toDate);
+            query.setParameter("wastageType", WastageType.DEBRIS_WASTE.name());
+
+            Object[] row = (Object[]) query.uniqueResult();
+
+
+            totalWastageDTO = new TotalWastageDTO();
+            totalWastageDTO.setQty(row != null ? (double) row[0] : 0.0);
+            totalWastageDTO.setUom(row != null ? (String) row[1] : "KGS");
+
+
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            session.close();
+        }
+
+        return totalWastageDTO;
+    }
+
+    @Override
+    public TotalWastageDTO getTotalGardenWastage(String plant, String projectNo, String fromDate, String toDate) {
+        Session session = sessionFactory.openSession();
+        TotalWastageDTO totalWastageDTO = null;
+        try {
+            String sql = "SELECT TOP 1 SUM(WASTAGE_QTY), WASTAGE_UOM FROM " + plant + "_DAILY_WASTAGE_DETAILS_DET WHERE " +
+                    "(DATE BETWEEN :fromDate AND :toDate) AND PROJECTNO = :projectNo AND PLANT = :plant AND WASTAGE_TYPE = :wastageType GROUP BY " +
+                    "WASTAGE_UOM";
+
+            Query query = session.createSQLQuery(sql);
+            query.setParameter("projectNo", projectNo);
+            query.setParameter("plant", plant);
+            query.setParameter("fromDate", fromDate);
+            query.setParameter("toDate", toDate);
+            query.setParameter("wastageType", WastageType.GARDEN_WASTE.name());
 
             Object[] row = (Object[]) query.uniqueResult();
 
@@ -254,4 +422,5 @@ public class DashboardDaoImpl implements DashboardDao {
 
         return result;
     }
+
 }

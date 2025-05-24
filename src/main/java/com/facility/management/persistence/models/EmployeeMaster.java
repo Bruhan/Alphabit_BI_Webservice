@@ -156,4 +156,5 @@ public class EmployeeMaster {
     private Byte isSalaryBy;
     @Column(name="EMPLOYEESUBTYPEID")
     private int employeeSubtypeId;
+
 }

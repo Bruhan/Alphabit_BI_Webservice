@@ -4,6 +4,8 @@ import com.facility.management.helpers.common.calc.DateTimeCalc;
 import com.facility.management.persistence.models.*;
 import com.facility.management.usecases.activity_log.ActivityLogModel;
 import com.facility.management.usecases.activity_log.ActivityLogService;
+import com.facility.management.usecases.attendance.dto.AttendanceCalendarResponseDTO;
+import com.facility.management.usecases.attendance.dto.CalendarRequestDTO;
 import com.facility.management.usecases.wastage.dto.InorganicProductDTO;
 import com.facility.management.usecases.wastage.dto.InorganicWastageRequestDTO;
 import com.facility.management.usecases.wastage.dto.OrganicWastageRequestDTO;
@@ -13,10 +15,8 @@ import com.facility.management.usecases.wastage.enums.MoveOWCType;
 import com.facility.management.usecases.wastage.enums.ProjectInventoryProductType;
 import com.facility.management.usecases.wastage.enums.WastageType;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.core.parameters.P;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
@@ -715,6 +715,109 @@ public class WastageService {
         return result;
     }
 
+    public HashMap<String, Integer> sendToComposeOrCattleFeet(String plant, ComposeCattleFeedRequestDTO composeCattleFeedRequestDTO) {
+        HashMap<String, Integer> result = new HashMap<>();
+        DateTimeCalc dateTimeCalc = new DateTimeCalc();
+        ActivityLogModel activityLogModel = new ActivityLogModel();
+        try {
+            ComposeCattleFeedDET composeCattleFeedDET = ComposeCattleFeedDET.builder()
+                    .plant(plant)
+                    .projectNo(composeCattleFeedRequestDTO.getProjectNo())
+                    .date(dateTimeCalc.getTodayDMYDate())
+                    .qty(composeCattleFeedRequestDTO.getQty())
+                    .uom(composeCattleFeedRequestDTO.getUom())
+                    .empCode(composeCattleFeedRequestDTO.getEmpCode())
+                    .build();
+            activityLogService.setActivityLogDetails(activityLogModel.setActivityLogModel(
+                    plant, "SAVE_COMPOSECATTLEFEEDDET", "", "", "", 0.0,
+                    composeCattleFeedRequestDTO.getEmpCode(), dateTimeCalc.getTodayDMYDate(), dateTimeCalc.getTodayDMYDate(), composeCattleFeedRequestDTO.getEmpCode(),
+                    "CREATED", ""));
+            Integer composeCattleFeedDetInserted = wastageDao.saveComposeCattleFeedDet(plant, composeCattleFeedDET);
+            result.put("composeCattleFeedDetInserted", composeCattleFeedDetInserted);
+
+            boolean isComposeCattleFeedHdrExists = wastageDao.checkComposeCattleFeedHDR(plant, composeCattleFeedRequestDTO.getProjectNo());
+
+            if(isComposeCattleFeedHdrExists) {
+                ComposeCattleFeedHDR existingComposeCattleFeedHdr = wastageDao.getComposeCattleFeedHDR(plant, composeCattleFeedRequestDTO.getProjectNo());
+
+                existingComposeCattleFeedHdr.setTotalQty(existingComposeCattleFeedHdr.getTotalQty() + composeCattleFeedRequestDTO.getQty());
+                existingComposeCattleFeedHdr.setPendingQty(existingComposeCattleFeedHdr.getPendingQty() + composeCattleFeedRequestDTO.getQty());
+
+                activityLogService.setActivityLogDetails(activityLogModel.setActivityLogModel(
+                        plant, "UPDATE_COMPOSECATTLEFEEDHDR", "", "", "", 0.0,
+                        composeCattleFeedRequestDTO.getEmpCode(), dateTimeCalc.getTodayDMYDate(), dateTimeCalc.getTodayDMYDate(), composeCattleFeedRequestDTO.getEmpCode(),
+                        "CREATED", ""));
+                Integer composeCattleFeedHdrUpdated = wastageDao.updateComposeCattleFeedHdr(plant, existingComposeCattleFeedHdr);
+                result.put("composeCattleFeedHdrUpdated", composeCattleFeedHdrUpdated);
+
+            } else {
+                ComposeCattleFeedHDR composeCattleFeedHDR = ComposeCattleFeedHDR.builder()
+                        .plant(plant)
+                        .projectNo(composeCattleFeedDET.getProjectNo())
+                        .totalQty(composeCattleFeedRequestDTO.getQty())
+                        .totalUOM(composeCattleFeedDET.getUom())
+                        .processedQty(0.0)
+                        .pendingQty(composeCattleFeedRequestDTO.getQty())
+                        .build();
+
+                activityLogService.setActivityLogDetails(activityLogModel.setActivityLogModel(
+                        plant, "SAVE_COMPOSECATTLEFEEDHDR", "", "", "", 0.0,
+                        composeCattleFeedRequestDTO.getEmpCode(), dateTimeCalc.getTodayDMYDate(), dateTimeCalc.getTodayDMYDate(), composeCattleFeedRequestDTO.getEmpCode(),
+                        "CREATED", ""));
+                Integer composeCattleFeedHdrInserted = wastageDao.saveComposeCattleFeedHdr(plant, composeCattleFeedHDR);
+                result.put("composeCattleFeedHdrInserted", composeCattleFeedHdrInserted);
+            }
+
+            boolean isProjectInventoryExists = wastageDao.checkProjectInventory(plant, composeCattleFeedRequestDTO.getProjectNo(), ProjectInventoryProductType.COMPOSE_OR_CATTLE_FEEDS.name());
+
+            if(isProjectInventoryExists) {
+                ProjectInventory existingProjectInventory = wastageDao.getProjectInventory(plant, composeCattleFeedRequestDTO.getProjectNo(), ProjectInventoryProductType.COMPOSE_OR_CATTLE_FEEDS.name());
+
+                existingProjectInventory.setTotalQty(existingProjectInventory.getTotalQty() + composeCattleFeedRequestDTO.getQty());
+                existingProjectInventory.setPendingQty(existingProjectInventory.getPendingQty() + composeCattleFeedRequestDTO.getQty());
+
+                activityLogService.setActivityLogDetails(activityLogModel.setActivityLogModel(
+                        plant, "UPDATE_PROJECT_INVENTORY", "", "", "", 0.0,
+                        composeCattleFeedRequestDTO.getEmpCode(), dateTimeCalc.getTodayDMYDate(), dateTimeCalc.getTodayDMYDate(), composeCattleFeedRequestDTO.getEmpCode(),
+                        "CREATED", ""));
+                Integer projectInventoryUpdated = wastageDao.updateProjectInventory(plant, existingProjectInventory, ProjectInventoryProductType.COMPOSE_OR_CATTLE_FEEDS.name());
+                result.put("projectInventoryUpdated", projectInventoryUpdated);
+            } else {
+                ProjectInventory projectInventory = ProjectInventory.builder()
+                        .plant(plant)
+                        .projectNo(composeCattleFeedDET.getProjectNo())
+                        .totalQty(composeCattleFeedRequestDTO.getQty())
+                        .uom(composeCattleFeedDET.getUom())
+                        .processedQty(0.0)
+                        .pendingQty(composeCattleFeedRequestDTO.getQty())
+                        .build();
+
+                activityLogService.setActivityLogDetails(activityLogModel.setActivityLogModel(
+                        plant, "SAVE_PROJECT_INVENTORY", "", "", "", 0.0,
+                        composeCattleFeedRequestDTO.getEmpCode(), dateTimeCalc.getTodayDMYDate(), dateTimeCalc.getTodayDMYDate(), composeCattleFeedRequestDTO.getEmpCode(),
+                        "CREATED", ""));
+                Integer projectInventoryInserted = wastageDao.saveProjectInventory(plant, projectInventory, ProjectInventoryProductType.COMPOSE_OR_CATTLE_FEEDS.name());
+                result.put("projectInventoryInserted", projectInventoryInserted);
+            }
+
+            DailyWastageDetailsHDR oldDailyWastageDetailsHDR = wastageDao.getDailyWastageDetailsHDR(plant, WastageType.ORGANIC_WASTE.toString(), composeCattleFeedRequestDTO.getProjectNo()); //inorganic waste is hardcoded
+            oldDailyWastageDetailsHDR.setProcessedQty(oldDailyWastageDetailsHDR.getProcessedQty() - composeCattleFeedRequestDTO.getQty());
+
+            activityLogService.setActivityLogDetails(activityLogModel.setActivityLogModel(
+                    plant, "UPDATE_DAILY_WASTAGE_HDR", "", "", "", 0.0,
+                    composeCattleFeedRequestDTO.getEmpCode(), dateTimeCalc.getTodayDMYDate(), dateTimeCalc.getTodayDMYDate(), composeCattleFeedRequestDTO.getEmpCode(),
+                    "CREATED", ""));
+            Integer dailyWastageHdrUpdated = wastageDao.updateDailyWastageHdr(plant, oldDailyWastageDetailsHDR);
+            result.put("dailyWastageHdrUpdated", dailyWastageHdrUpdated);
+
+
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        }
+
+        return result;
+    }
+
     public HashMap<String, Integer> sendToOWCMachine(String plant, OWCMachineRequestDTO owcMachineRequestDTO) {
         HashMap<String, Integer> result = new HashMap<>();
         DateTimeCalc dateTimeCalc = new DateTimeCalc();
@@ -723,6 +826,7 @@ public class WastageService {
 
             for(OWCMachineProduct owcMachineProduct: owcMachineRequestDTO.getOwcMachineProducts()) {
                 boolean isOWCHDRExists = wastageDao.checkOWCHDR(plant, owcMachineRequestDTO.getProjectNo());
+                Integer hdrId;
 
                 if (isOWCHDRExists) { //Want to change logic if the requested uom do not contain KG
                     OWCHDR existingOWCHdr = wastageDao.getOWCHDR(plant, owcMachineRequestDTO.getProjectNo());
@@ -734,6 +838,7 @@ public class WastageService {
 //                    }
 
                     existingOWCHdr.setTotalQty(existingOWCHdr.getTotalQty() + owcMachineProduct.getQty());
+                    hdrId = existingOWCHdr.getId();
 
                     activityLogService.setActivityLogDetails(activityLogModel.setActivityLogModel(
                             plant, "UPDATE_OWC_HDR", "", "", "", 0.0,
@@ -761,59 +866,55 @@ public class WastageService {
                             plant, "SAVE_OWC_HDR", "", "", "", 0.0,
                             owcMachineRequestDTO.getEmpCode(), dateTimeCalc.getTodayDMYDate(), dateTimeCalc.getTodayDMYDate(), owcMachineRequestDTO.getEmpCode(),
                             "CREATED", ""));
-                    Integer hdrId = wastageDao.saveOWCHdr(plant, owcHdr);
+                    hdrId = wastageDao.saveOWCHdr(plant, owcHdr);
 
                     if(hdrId > 1) {
                         Integer owcHdrInserted = 1;
                         result.put("owcHdrInserted - " + owcHdrInserted, owcHdrInserted);
                     }
 
-                    for(OWCMachineProduct owcMachineProduct1: owcMachineRequestDTO.getOwcMachineProducts()) {
-
-
-                        OWCDET owcDet = OWCDET.builder()
-                                .plant(plant)
-                                .projectNo(owcMachineRequestDTO.getProjectNo())
-                                .date(dateTimeCalc.getTodayDMYDate())
-                                .qty(owcMachineProduct1.getQty())
-                                .uom(owcMachineProduct1.getUom())
-                                .empCode(owcMachineRequestDTO.getEmpCode())
-                                .machineId(owcMachineProduct1.getMachineId())
-                                .build();
-
-                        activityLogService.setActivityLogDetails(activityLogModel.setActivityLogModel(
-                                plant, "SAVE_OWC_DET", "", "", "", 0.0,
-                                owcMachineRequestDTO.getEmpCode(), dateTimeCalc.getTodayDMYDate(), dateTimeCalc.getTodayDMYDate(), owcMachineRequestDTO.getEmpCode(),
-                                "CREATED", ""));
-                        Integer detId = wastageDao.saveOWCDet(plant, owcDet);
-
-                        if(detId > 1) {
-                            Integer owcDetInserted = 1;
-                            result.put("owcDetInserted - " + owcMachineProduct1.getMachineId(), owcDetInserted);
-                        }
-
-                        for(OWCProductDTO owcProductDTO: owcMachineProduct.getOwcMachineProductDTOList()) {
-                            OWCProductDET owcProductDET = OWCProductDET.builder()
-                                    .plant(plant)
-                                    .projectNo(owcMachineRequestDTO.getProjectNo())
-                                    .detId(detId)
-                                    .hdrId(hdrId)
-                                    .product(owcProductDTO.getItem())
-                                    .qty(owcProductDTO.getQty())
-                                    .uom(owcProductDTO.getUom())
-                                    .build();
-
-                            activityLogService.setActivityLogDetails(activityLogModel.setActivityLogModel(
-                                    plant, "SAVE_OWC_PRODUCT_DET", "", "", "", 0.0,
-                                    owcMachineRequestDTO.getEmpCode(), dateTimeCalc.getTodayDMYDate(), dateTimeCalc.getTodayDMYDate(), owcMachineRequestDTO.getEmpCode(),
-                                    "CREATED", ""));
-                            Integer owcProductDETInserted = wastageDao.saveOWCProductDET(plant, owcProductDET);
-                            result.put("owcProductDETInserted", owcProductDETInserted);
-                        }
-
-                    }
-
                 }
+
+                OWCDET owcDet = OWCDET.builder()
+                        .plant(plant)
+                        .projectNo(owcMachineRequestDTO.getProjectNo())
+                        .date(dateTimeCalc.getTodayDMYDate())
+                        .qty(owcMachineProduct.getQty())
+                        .uom(owcMachineProduct.getUom())
+                        .empCode(owcMachineRequestDTO.getEmpCode())
+                        .machineId(owcMachineProduct.getMachineId())
+                        .build();
+
+                activityLogService.setActivityLogDetails(activityLogModel.setActivityLogModel(
+                        plant, "SAVE_OWC_DET", "", "", "", 0.0,
+                        owcMachineRequestDTO.getEmpCode(), dateTimeCalc.getTodayDMYDate(), dateTimeCalc.getTodayDMYDate(), owcMachineRequestDTO.getEmpCode(),
+                        "CREATED", ""));
+                Integer detId = wastageDao.saveOWCDet(plant, owcDet);
+
+                if(detId > 1) {
+                    Integer owcDetInserted = 1;
+                    result.put("owcDetInserted - " + owcMachineProduct.getMachineId(), owcDetInserted);
+                }
+
+                for(OWCProductDTO owcProductDTO: owcMachineProduct.getOwcMachineProductDTOList()) {
+                    OWCProductDET owcProductDET = OWCProductDET.builder()
+                            .plant(plant)
+                            .projectNo(owcMachineRequestDTO.getProjectNo())
+                            .detId(detId)
+                            .hdrId(hdrId)
+                            .product(owcProductDTO.getItem())
+                            .qty(owcProductDTO.getQty())
+                            .uom(owcProductDTO.getUom())
+                            .build();
+
+                    activityLogService.setActivityLogDetails(activityLogModel.setActivityLogModel(
+                            plant, "SAVE_OWC_PRODUCT_DET", "", "", "", 0.0,
+                            owcMachineRequestDTO.getEmpCode(), dateTimeCalc.getTodayDMYDate(), dateTimeCalc.getTodayDMYDate(), owcMachineRequestDTO.getEmpCode(),
+                            "CREATED", ""));
+                    Integer owcProductDETInserted = wastageDao.saveOWCProductDET(plant, owcProductDET);
+                    result.put("owcProductDETInserted", owcProductDETInserted);
+                }
+
 
 //                double productsQty1 = 0.0;
 //
@@ -1056,10 +1157,10 @@ public class WastageService {
         return result;
     }
 
-    public List<BioGasDTO> getBioGasSummary(String plant, String projectNo) {
+    public List<BioGasDTO> getBioGasSummary(String plant, String projectNo, String date) {
         List<BioGasDTO> bioGasDTOList = null;
         try {
-            bioGasDTOList = wastageDao.getBioGasSummary(plant, projectNo);
+            bioGasDTOList = wastageDao.getBioGasSummary(plant, projectNo, date);
         } catch (Exception ex) {
             throw new RuntimeException(ex);
         }
@@ -1067,10 +1168,22 @@ public class WastageService {
         return bioGasDTOList;
     }
 
-    public List<OWCMachineDTO> getOWCSummary(String plant, String projectNo) {
+
+    public List<ComposeCattleFeedDTO> getComposeCattleFeedSummary(String plant, String projectNo, String date) {
+        List<ComposeCattleFeedDTO> composeCattleFeedDTOList = null;
+        try {
+            composeCattleFeedDTOList = wastageDao.getComposeCattleFeedSummary(plant, projectNo, date);
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        }
+
+        return composeCattleFeedDTOList;
+    }
+
+    public List<OWCMachineDTO> getOWCSummary(String plant, String projectNo, String date) {
         List<OWCMachineDTO> owcMachineDTOList = null;
         try {
-            owcMachineDTOList = wastageDao.getOWCSummary(plant, projectNo);
+            owcMachineDTOList = wastageDao.getOWCSummary(plant, projectNo, date);
 
             for(OWCMachineDTO owcMachineDTO: owcMachineDTOList) {
                 List<OWCMachineProductDTO> owcMachineProductDTOList = wastageDao.getOWCMachineProducts(plant, projectNo, owcMachineDTO.getId());
@@ -1084,10 +1197,10 @@ public class WastageService {
         return owcMachineDTOList;
     }
 
-    public List<OWCOutcomeDTO> getReceivedOWCOutcomeSummary(String plant, String projectNo) {
+    public List<OWCOutcomeDTO> getReceivedOWCOutcomeSummary(String plant, String projectNo, String date) {
         List<OWCOutcomeDTO> owcOutcomeDTOList = null;
         try {
-            owcOutcomeDTOList = wastageDao.getReceivedOWCOutcomeSummary(plant, projectNo);
+            owcOutcomeDTOList = wastageDao.getReceivedOWCOutcomeSummary(plant, projectNo, date);
         } catch (Exception ex) {
             throw new RuntimeException(ex);
         }
@@ -1095,10 +1208,10 @@ public class WastageService {
         return owcOutcomeDTOList;
     }
 
-    public List<MovedOWCOutcomeDTO> getMovedOWCOutcomeSummary(String plant, String projectNo) {
+    public List<MovedOWCOutcomeDTO> getMovedOWCOutcomeSummary(String plant, String projectNo, String date) {
         List<MovedOWCOutcomeDTO> movedOWCOutcomeDTOList = null;
         try {
-            movedOWCOutcomeDTOList = wastageDao.getMovedOWCOutcomeSummary(plant, projectNo);
+            movedOWCOutcomeDTOList = wastageDao.getMovedOWCOutcomeSummary(plant, projectNo, date);
         } catch (Exception ex) {
             throw new RuntimeException(ex);
         }
@@ -1117,10 +1230,10 @@ public class WastageService {
         return wastageDTOList;
     }
 
-    public List<OrganicWastageSummaryDTO> getOrganicWastageSummary(String plant, String projectNo) {
+    public List<OrganicWastageSummaryDTO> getOrganicWastageSummary(String plant, String projectNo, String date) {
         List<OrganicWastageSummaryDTO> organicWastageSummaryDTOList = null;
         try {
-            organicWastageSummaryDTOList = wastageDao.getOrganicWastageSummary(plant, projectNo);
+            organicWastageSummaryDTOList = wastageDao.getOrganicWastageSummary(plant, projectNo, date);
         } catch (Exception ex) {
             throw new RuntimeException(ex);
         }
@@ -1128,20 +1241,20 @@ public class WastageService {
         return organicWastageSummaryDTOList;
     }
 
-    public List<RejectedWastageSummaryDTO> getRejectedWastageSummary(String plant, String projectNo) {
+    public List<RejectedWastageSummaryDTO> getRejectedWastageSummary(String plant, String projectNo, String date) {
         List<RejectedWastageSummaryDTO> rejectedWastageSummaryDTOList = null;
         try {
-            rejectedWastageSummaryDTOList = wastageDao.getRejectedWastageSummary(plant, projectNo);
+            rejectedWastageSummaryDTOList = wastageDao.getRejectedWastageSummary(plant, projectNo, date);
         } catch (Exception ex) {
             throw new RuntimeException(ex);
         }
         return rejectedWastageSummaryDTOList;
     }
 
-    public List<InorganicWastageSummaryDTO> getInorganicWastageSummary(String plant, String projectNo) {
+    public List<InorganicWastageSummaryDTO> getInorganicWastageSummary(String plant, String projectNo, String date) {
         List<InorganicWastageSummaryDTO> inorganicWastageSummaryDTOList = null;
         try {
-            inorganicWastageSummaryDTOList = wastageDao.getInorganicWastageSummary(plant, projectNo);
+            inorganicWastageSummaryDTOList = wastageDao.getInorganicWastageSummary(plant, projectNo, date);
         } catch (Exception ex) {
             throw new RuntimeException(ex);
         }
@@ -1158,9 +1271,6 @@ public class WastageService {
 
         return owcMachineMstDTOList;
     }
-
-
-
 
     public List<OWCOutcomeProductDTO> getOWCOutcomeProducts(String plant, String projectNo) {
         List<OWCOutcomeProductDTO> owcOutcomeProductDTOList = null;
@@ -1211,6 +1321,106 @@ public class WastageService {
 
         } catch (Exception ex) {
             throw new RuntimeException(ex);
+        }
+
+        return result;
+    }
+
+
+    public List<WastageCalendarResponseDTO> hasWastage(String plant, String projectNo, CalendarRequestDTO calendarRequestDTO) {
+        List<WastageCalendarResponseDTO> result = null;
+        try {
+            result = wastageDao.hasWastage(plant, projectNo, calendarRequestDTO);
+        } catch (Exception e) {
+            throw new RuntimeException(e.getMessage());
+        }
+
+        return result;
+    }
+
+    public List<WastageCalendarResponseDTO> hasOrganicWastage(String plant, String projectNo, CalendarRequestDTO calendarRequestDTO) {
+        List<WastageCalendarResponseDTO> result = null;
+        try {
+            result = wastageDao.hasOrganicWastage(plant, projectNo, calendarRequestDTO);
+        } catch (Exception e) {
+            throw new RuntimeException(e.getMessage());
+        }
+
+        return result;
+    }
+
+    public List<WastageCalendarResponseDTO> hasInorganicWastage(String plant, String projectNo, CalendarRequestDTO calendarRequestDTO) {
+        List<WastageCalendarResponseDTO> result = null;
+        try {
+            result = wastageDao.hasInorganicWastage(plant, projectNo, calendarRequestDTO);
+        } catch (Exception e) {
+            throw new RuntimeException(e.getMessage());
+        }
+
+        return result;
+    }
+
+    public List<WastageCalendarResponseDTO> hasRejectedWastage(String plant, String projectNo, CalendarRequestDTO calendarRequestDTO) {
+        List<WastageCalendarResponseDTO> result = null;
+        try {
+            result = wastageDao.hasRejectedWastage(plant, projectNo, calendarRequestDTO);
+        } catch (Exception e) {
+            throw new RuntimeException(e.getMessage());
+        }
+
+        return result;
+    }
+
+    public List<WastageCalendarResponseDTO> hasBiogas(String plant, String projectNo, CalendarRequestDTO calendarRequestDTO) {
+        List<WastageCalendarResponseDTO> result = null;
+        try {
+            result = wastageDao.hasBiogas(plant, projectNo, calendarRequestDTO);
+        } catch (Exception e) {
+            throw new RuntimeException(e.getMessage());
+        }
+
+        return result;
+    }
+
+    public List<WastageCalendarResponseDTO> hasOwcMachineSum(String plant, String projectNo, CalendarRequestDTO calendarRequestDTO) {
+        List<WastageCalendarResponseDTO> result = null;
+        try {
+            result = wastageDao.hasOwcMachineSum(plant, projectNo, calendarRequestDTO);
+        } catch (Exception e) {
+            throw new RuntimeException(e.getMessage());
+        }
+
+        return result;
+    }
+
+    public List<WastageCalendarResponseDTO> hasComposeCattleFeet(String plant, String projectNo, CalendarRequestDTO calendarRequestDTO) {
+        List<WastageCalendarResponseDTO> result = null;
+        try {
+            result = wastageDao.hasComposeCattleFeet(plant, projectNo, calendarRequestDTO);
+        } catch (Exception e) {
+            throw new RuntimeException(e.getMessage());
+        }
+
+        return result;
+    }
+
+    public List<WastageCalendarResponseDTO> hasReceivedOwcOutcome(String plant, String projectNo, CalendarRequestDTO calendarRequestDTO) {
+        List<WastageCalendarResponseDTO> result = null;
+        try {
+            result = wastageDao.hasReceivedOwcOutcome(plant, projectNo, calendarRequestDTO);
+        } catch (Exception e) {
+            throw new RuntimeException(e.getMessage());
+        }
+
+        return result;
+    }
+
+    public List<WastageCalendarResponseDTO> hasMovedOwcOutcome(String plant, String projectNo, CalendarRequestDTO calendarRequestDTO) {
+        List<WastageCalendarResponseDTO> result = null;
+        try {
+            result = wastageDao.hasMovedOwcOutcome(plant, projectNo, calendarRequestDTO);
+        } catch (Exception e) {
+            throw new RuntimeException(e.getMessage());
         }
 
         return result;

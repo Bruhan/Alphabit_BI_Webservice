@@ -8,6 +8,7 @@ import lombok.Setter;
 @Setter
 public class ProductRequestDetDTO {
     private String plant;
+    private int productRequestHdrId;
     private int productRequestDetId;
     private String item;
     private String productName;

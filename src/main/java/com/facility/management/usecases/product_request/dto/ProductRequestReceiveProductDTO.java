@@ -9,6 +9,10 @@ public class ProductRequestReceiveProductDTO {
     private int id;
     private String item;
     private String itemDesc;
-    private double qty;
+    private double quantity;
+    private double processedQty;
+    private double balanceQty;
+    private double receivedQty;
+    private double nonReceivedQty;
     private String uom;
 }

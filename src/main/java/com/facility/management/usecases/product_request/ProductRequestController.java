@@ -3,9 +3,11 @@ package com.facility.management.usecases.product_request;
 import com.facility.management.helpers.common.results.ResultDao;
 import com.facility.management.helpers.common.token.ClaimsDao;
 import com.facility.management.helpers.common.token.ClaimsSet;
+import com.facility.management.usecases.attendance.dto.CalendarRequestDTO;
 import com.facility.management.usecases.product_request.dto.*;
 import com.facility.management.usecases.product_request.enums.ApprovalStatus;
 import com.facility.management.usecases.product_request.enums.RequestStatus;
+import com.facility.management.usecases.wastage.dto.WastageCalendarResponseDTO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -30,12 +32,13 @@ public class ProductRequestController {
                                                               @RequestParam(required = false) String projectNo,
                                                               @RequestParam(required = false) String requestorId,
                                                               @RequestParam(required = false) RequestStatus requestStatus,
-                                                              @RequestParam(required = false) ApprovalStatus approvalStatus) throws Exception {
+                                                              @RequestParam(required = false) ApprovalStatus approvalStatus,
+                                                              @RequestParam(required = false) String date) throws Exception {
         ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
         String plant = claimsDao.getPlt();
 //        String plant = "test";
 
-        List<ProductRequestHdrDTO> productRequestHdrDTOList = productRequestService.getProductRequestByCriteria(plant, projectNo, requestorId, requestStatus, approvalStatus);
+        List<ProductRequestHdrDTO> productRequestHdrDTOList = productRequestService.getProductRequestByCriteria(plant, projectNo, requestorId, requestStatus, approvalStatus, date);
 
 //        return new ResponseEntity<>(productRequestHdrDTOList, HttpStatus.OK);
         ResultDao resultDao = new ResultDao();
@@ -75,7 +78,7 @@ public class ProductRequestController {
         ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
         String plant = claimsDao.getPlt();
 
-        List<ProductRequestHdrDTO> productRequestHdrDTOList = productRequestService.getProductRequestByCriteria(plant, projectNo, null, null, ApprovalStatus.PENDING);
+        List<ProductRequestHdrDTO> productRequestHdrDTOList = productRequestService.getProductRequestByCriteria(plant, projectNo, null, null, ApprovalStatus.PENDING, null);
 
         ResultDao resultDao = new ResultDao();
         resultDao.setResults(productRequestHdrDTOList);
@@ -89,7 +92,7 @@ public class ProductRequestController {
         ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
         String plant = claimsDao.getPlt();
 
-        List<ProductRequestHdrDTO> productRequestHdrDTOList = productRequestService.getProductRequestByCriteria(plant, projectNo, null, null, ApprovalStatus.APPROVED);
+        List<ProductRequestHdrDTO> productRequestHdrDTOList = productRequestService.getApprovedProductRequestByCriteria(plant, projectNo, ApprovalStatus.APPROVED);
 
         ResultDao resultDao = new ResultDao();
         resultDao.setResults(productRequestHdrDTOList);
@@ -103,7 +106,7 @@ public class ProductRequestController {
         ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
         String plant = claimsDao.getPlt();
 
-        List<ProductRequestHdrDTO> productRequestHdrDTOList = productRequestService.getProductRequestByCriteria(plant, projectNo, null, null, ApprovalStatus.REJECTED);
+        List<ProductRequestHdrDTO> productRequestHdrDTOList = productRequestService.getProductRequestByCriteria(plant, projectNo, null, null, ApprovalStatus.REJECTED, null);
 
         ResultDao resultDao = new ResultDao();
         resultDao.setResults(productRequestHdrDTOList);
@@ -127,11 +130,11 @@ public class ProductRequestController {
     }
 
     @GetMapping("/product-requests/receive/{projectNo}")
-    public ResponseEntity<Object> getProductRequestReceiveByCriteria(HttpServletRequest request, @PathVariable("projectNo") String projectNo) throws Exception {
+    public ResponseEntity<Object> getProductRequestReceiveByCriteria(HttpServletRequest request, @PathVariable("projectNo") String projectNo, @RequestParam(required = false) String date) throws Exception {
         ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
         String plant = claimsDao.getPlt();
 
-        List<ProductRequestReceiveDTO> productRequestReceiveDTOList = productRequestService.getProductRequestReceiveByCriteria(plant, projectNo);
+        List<ProductRequestReceiveDTO> productRequestReceiveDTOList = productRequestService.getProductRequestReceiveByCriteria(plant, projectNo, date);
 
         ResultDao resultDao = new ResultDao();
         if(productRequestReceiveDTOList == null) {
@@ -181,6 +184,20 @@ public class ProductRequestController {
         resultDao.setStatusCode(HttpStatus.OK.value());
         return new ResponseEntity<>(resultDao, HttpStatus.OK);
 
+    }
+
+    @GetMapping("received-product-requests/{projectNo}")
+    public ResponseEntity<Object> getReceivedProductRequests(HttpServletRequest request, @PathVariable String projectNo, @RequestParam Integer productRequestId) throws Exception {
+        ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
+        String plant = claimsDao.getPlt();
+
+        ProductRequestReceiveDTO result = productRequestService.getReceivedProductRequests(plant, projectNo, productRequestId);
+
+        ResultDao resultDao = new ResultDao();
+        resultDao.setResults(result);
+        resultDao.setMessage("SUCCESS");
+        resultDao.setStatusCode(HttpStatus.OK.value());
+        return new ResponseEntity<>(resultDao, HttpStatus.OK);
     }
 
     @GetMapping("product-requests/today")
@@ -237,5 +254,37 @@ public class ProductRequestController {
         resultDao.setMessage("SUCCESS");
         return new ResponseEntity<>(resultDao, HttpStatus.OK);
 
+    }
+
+    @PutMapping("/hasRequestedProduct/{projectNo}")
+    public ResponseEntity<Object> hasRequestedProduct(HttpServletRequest request, @PathVariable("projectNo") String projectNo, @RequestBody CalendarRequestDTO calendarRequestDTO) throws Exception {
+        ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
+        String plant = claimsDao.getPlt();
+
+        List<PRCalendarResponseDTO> result = productRequestService.hasRequestedProduct(plant, projectNo, calendarRequestDTO);
+
+        ResultDao resultDao = new ResultDao();
+
+        resultDao.setMessage("SUCCESS");
+        resultDao.setStatusCode(HttpStatus.OK.value());
+        resultDao.setResults(result);
+
+        return new ResponseEntity<>(resultDao, HttpStatus.OK);
+    }
+
+    @PutMapping("/hasReceivedProduct/{projectNo}")
+    public ResponseEntity<Object> hasReceivedProduct(HttpServletRequest request, @PathVariable("projectNo") String projectNo, @RequestBody CalendarRequestDTO calendarRequestDTO) throws Exception {
+        ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
+        String plant = claimsDao.getPlt();
+
+        List<PRCalendarResponseDTO> result = productRequestService.hasReceivedProduct(plant, projectNo, calendarRequestDTO);
+
+        ResultDao resultDao = new ResultDao();
+
+        resultDao.setMessage("SUCCESS");
+        resultDao.setStatusCode(HttpStatus.OK.value());
+        resultDao.setResults(result);
+
+        return new ResponseEntity<>(resultDao, HttpStatus.OK);
     }
 }

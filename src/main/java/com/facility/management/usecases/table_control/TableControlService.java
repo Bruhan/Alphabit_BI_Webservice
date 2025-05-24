@@ -2,6 +2,7 @@ package com.facility.management.usecases.table_control;
 
 import com.facility.management.helpers.common.calc.DateTimeCalc;
 import com.facility.management.persistence.models.TableControl;
+import com.facility.management.usecases.table_control.dao.TableControlDao;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -9,6 +10,9 @@ import org.springframework.stereotype.Service;
 public class TableControlService {
 	@Autowired
 	TableControlRepository tableControlRepository;
+
+	@Autowired
+	TableControlDao tableControlDao;
 
 	public String checkTableControlPk(String pk0, String pk1) throws Exception {
 		try {
@@ -52,6 +56,15 @@ public class TableControlService {
 			val.setCrAt(new DateTimeCalc().getUcloTodayDateTime());
 			val.setCrBy(crBy);
 			tableControlRepository.save(val);
+		} catch (Exception e) {
+			throw new Exception(e.getMessage());
+		}
+		return "1";
+	}
+
+	public String updateTableControlDetails(TableControl val) throws Exception {
+		try {
+			tableControlDao.update(val);
 		} catch (Exception e) {
 			throw new Exception(e.getMessage());
 		}

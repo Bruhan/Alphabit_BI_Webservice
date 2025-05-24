@@ -7,6 +7,7 @@ import lombok.Setter;
 @Setter
 public class ProjectDetailDTO {
     private String projectNo;
+    private String customerProjectNo;
     private String projectName;
     private String location;
 }

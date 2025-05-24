@@ -2,7 +2,10 @@ package com.facility.management.usecases.wastage_movement.dao;
 
 import com.facility.management.helpers.common.calc.DateTimeCalc;
 import com.facility.management.persistence.models.WasteMovementDET;
+import com.facility.management.usecases.attendance.dto.CalendarRequestDTO;
+import com.facility.management.usecases.product_request.dto.PRCalendarResponseDTO;
 import com.facility.management.usecases.product_request.enums.LNStatus;
+import com.facility.management.usecases.wastage.dto.WastageCalendarResponseDTO;
 import com.facility.management.usecases.wastage_movement.dto.*;
 import com.facility.management.usecases.wastage_movement.enums.WastageType;
 import org.hibernate.Session;
@@ -11,9 +14,11 @@ import org.hibernate.query.Query;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 
 @Repository("WasteMovementDao")
@@ -221,16 +226,76 @@ public class WasteMovementDaoImpl implements WasteMovementDao{
     }
 
     @Override
-    public List<WasteMovementDTO> getWastageMovementSummary(String plant, String projectNo) {
+    public Integer deleteWasteMovementInorganicProductDET(String plant, String projectNo, Integer hdrId, Integer detId) {
+        Session session = sessionFactory.openSession();
+        Integer result = 0;
+        try {
+            String sql = "DELETE FROM " + plant + "_WASTE_MOVEMENT_INORGANIC_PRODUCT WHERE HDRID = :hdrId AND DETID = :detId AND PROJECTNO = :projectNo AND PLANT = :plant";
+            session.beginTransaction();
+            Query query = session.createSQLQuery(sql);
+            query.setParameter("hdrId", hdrId);
+            query.setParameter("detId", detId);
+            query.setParameter("projectNo", projectNo);
+            query.setParameter("plant", plant);
+
+            result = query.executeUpdate();
+            session.getTransaction().commit();
+
+        }  catch (Exception ex) {
+            session.getTransaction().rollback();
+            throw new RuntimeException(ex);
+        }  finally {
+            session.close();
+        }
+
+        return result;
+    }
+
+    @Override
+    public Integer deleteWasteMovementOWCOutcomeDET(String plant, String projectNo, Integer hdrId, Integer detId) {
+        Session session = sessionFactory.openSession();
+        Integer result = 0;
+        try {
+            String sql = "DELETE FROM " + plant + "_WASTE_MOVEMENT_OWC_PRODUCT WHERE HDRID = :hdrId AND DETID = :detId AND PROJECTNO = :projectNo AND PLANT = :plant";
+            session.beginTransaction();
+            Query query = session.createSQLQuery(sql);
+            query.setParameter("hdrId", hdrId);
+            query.setParameter("detId", detId);
+            query.setParameter("projectNo", projectNo);
+            query.setParameter("plant", plant);
+
+            result = query.executeUpdate();
+            session.getTransaction().commit();
+
+        }  catch (Exception ex) {
+            session.getTransaction().rollback();
+            throw new RuntimeException(ex);
+        }  finally {
+            session.close();
+        }
+
+        return result;
+    }
+
+    @Override
+    public List<WasteMovementDTO> getWastageMovementSummary(String plant, String projectNo, String date) {
         Session session = sessionFactory.openSession();
         List<WasteMovementDTO> wasteMovementDTOList = null;
         try {
-            String sql = "SELECT DATE, VEHICLEID, DRIVERNO, FINAL_DESTINATION, REMARKS, DC_NO, VEHICLE_TYPE, ID FROM " + plant + "_WASTE_MOVEMENT_HDR" +
-                    "  WHERE PROJECTNO = :projectNo AND PLANT = :plant";
+            String sql = "SELECT DATE, VEHICLEID, DRIVERNO, FINAL_DESTINATION, REMARKS, DC_NO, VEHICLE_TYPE, ID, PLANT FROM " + plant + "_WASTE_MOVEMENT_HDR" +
+                    "  WHERE PROJECTNO = :projectNo AND PLANT = :plant AND (DATE = :date OR :date IS NULL)";
             Query query = session.createSQLQuery(sql);
 
             query.setParameter("projectNo", projectNo);
             query.setParameter("plant", plant);
+
+            if (date != null) {
+                java.util.Date utilDate = new SimpleDateFormat("dd-MM-yyyy").parse(date);
+                java.sql.Date sqlDate = new java.sql.Date(utilDate.getTime());
+                query.setParameter("date", sqlDate);
+            } else {
+                query.setParameter("date", null,  org.hibernate.type.DateType.INSTANCE);
+            }
 
             List<Object[]> rows = query.list();
 
@@ -246,6 +311,7 @@ public class WasteMovementDaoImpl implements WasteMovementDao{
                 wasteMovementDTO.setDeliveryChallanNo((String) row[5]);
                 wasteMovementDTO.setVehicleType((String) row[6]);
                 wasteMovementDTO.setId((Integer) row[7]);
+                wasteMovementDTO.setPlant((String) row[8]);
 
                 wasteMovementDTOList.add(wasteMovementDTO);
             }
@@ -419,7 +485,7 @@ public class WasteMovementDaoImpl implements WasteMovementDao{
             DateTimeCalc dateTimeCalc = new DateTimeCalc();
             Query query = session.createSQLQuery(hdrsql);
             query.setParameter("plant", plant);
-            query.setParameter("date", dateTimeCalc.getTodayDMYDate());
+            query.setParameter("date", new SimpleDateFormat("yyyy-MM-dd").format(new SimpleDateFormat("dd-MM-yyyy").parse(updateWasteMovementRequestDTO.getDate())));
             query.setParameter("vehicleId", updateWasteMovementRequestDTO.getVehicleNo());
             query.setParameter("driverNo", updateWasteMovementRequestDTO.getDriverNo());
             query.setParameter("finalDestination", updateWasteMovementRequestDTO.getDestination());
@@ -508,5 +574,40 @@ public class WasteMovementDaoImpl implements WasteMovementDao{
             session.close();
         }
         return 1;
+    }
+
+    @Override
+    public List<TransportCalendarResponseDTO> hasTransport(String plant, String projectNo, CalendarRequestDTO calendarRequestDTO) throws ParseException {
+        Session session = sessionFactory.openSession();
+        List<TransportCalendarResponseDTO> result = new ArrayList<>();
+        try {
+
+            for(String date : calendarRequestDTO.getDateList()) {
+                String sql = "SELECT COUNT(*) AS RESULT FROM " + plant + "_WASTE_MOVEMENT_HDR " +
+                        "WHERE DATE = :date AND PROJECTNO = :projectNo";
+
+                Query query = session.createSQLQuery(sql);
+                query.setParameter("projectNo", projectNo);
+
+                SimpleDateFormat inputFormat = new SimpleDateFormat("dd-MM-yyyy");
+                Date parsedDate = inputFormat.parse(date);
+                query.setParameter("date", parsedDate);
+
+                Number row = (Number) query.uniqueResult();
+
+                TransportCalendarResponseDTO transportCalendarResponseDTO = new TransportCalendarResponseDTO();
+                transportCalendarResponseDTO.setDate(date);
+                transportCalendarResponseDTO.setHasTransport(row.intValue());
+
+                result.add(transportCalendarResponseDTO);
+            }
+
+        } catch (Exception ex) {
+            throw ex;
+        } finally {
+            session.close();
+        }
+
+        return result;
     }
 }

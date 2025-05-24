@@ -2,10 +2,9 @@ package com.facility.management.usecases.wastage.dao;
 
 import com.facility.management.helpers.common.calc.DateTimeCalc;
 import com.facility.management.persistence.models.*;
-import com.facility.management.usecases.product_request.dto.ProductRequestHdrDTO;
-import com.facility.management.usecases.product_request.enums.ApprovalStatus;
-import com.facility.management.usecases.product_request.enums.LNStatus;
-import com.facility.management.usecases.product_request.enums.RequestStatus;
+import com.facility.management.usecases.attendance.dto.AttendanceCalendarResponseDTO;
+import com.facility.management.usecases.attendance.dto.CalendarRequestDTO;
+import com.facility.management.usecases.dashboard.enums.OWCMachineStatus;
 import com.facility.management.usecases.wastage.dto.*;
 import com.facility.management.usecases.wastage.enums.WastageType;
 import org.hibernate.Session;
@@ -14,9 +13,11 @@ import org.hibernate.query.Query;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 
 @Repository("WastageDao")
@@ -45,7 +46,17 @@ public class WastageDaoImpl implements WastageDao{
                 query.setParameter("wastageQty", wastageRequestDTO.getWastageQty());
                 query.setParameter("wastageUom", wastageRequestDTO.getWastageUOM());
                 query.setParameter("supervisorCode", wastageRequestDTO.getSupervisorCode());
-                query.setParameter("date", dateTimeCalc.getTodayDMYDate());
+
+                Date parsedDate = null;
+                String parsedDateStr = null;
+                if(wastageRequestDTO.getDate() != null) {
+                    SimpleDateFormat inputFormat = new SimpleDateFormat("dd-MM-yyyy");
+                    parsedDate = inputFormat.parse(wastageRequestDTO.getDate());
+                } else {
+                    parsedDateStr = dateTimeCalc.getTodayDMYDate();
+                }
+
+                query.setParameter("date", wastageRequestDTO.getDate() != null ? parsedDate : parsedDateStr);
                 query.setParameter("crAt", dateTimeCalc.getTodayDateTime());
                 query.setParameter("crBy", null);
 
@@ -565,6 +576,167 @@ public class WastageDaoImpl implements WastageDao{
     }
 
     @Override
+    public Integer saveComposeCattleFeedDet(String plant, ComposeCattleFeedDET composeCattleFeedDET) {
+        Session session = sessionFactory.openSession();
+        Integer result = 0;
+        try {
+            String sql = "INSERT INTO " + plant + "_COMPOSECATTLEFEEDDET (PLANT, PROJECTNO, DATE, QTY, UOM, EMPCODE, CRAT, CRBY) " +
+                    "VALUES (:plant, :projectNo, :date, :qty, :uom, :empCode, :crAt, :crBy)";
+
+            session.beginTransaction();
+            Query query = session.createSQLQuery(sql);
+            DateTimeCalc dateTimeCalc = new DateTimeCalc();
+
+            query.setParameter("plant", plant);
+            query.setParameter("projectNo", composeCattleFeedDET.getProjectNo());
+            query.setParameter("date", composeCattleFeedDET.getDate());
+            query.setParameter("qty", composeCattleFeedDET.getQty());
+            query.setParameter("uom", composeCattleFeedDET.getUom());
+            query.setParameter("empCode", composeCattleFeedDET.getEmpCode());
+            query.setParameter("crAt", dateTimeCalc.getTodayDateTime());
+            query.setParameter("crBy", null);
+
+            result = query.executeUpdate();
+
+            session.getTransaction().commit();
+        } catch (Exception e) {
+            session.getTransaction().rollback();
+            throw new RuntimeException(e);
+        } finally {
+            session.close();
+        }
+        return result;
+    }
+
+    @Override
+    public boolean checkComposeCattleFeedHDR(String plant, String projectNo) {
+        boolean recordExists = false;
+        Session session = sessionFactory.openSession();
+        try {
+            String sql = "SELECT COUNT(*) FROM " + plant + "_COMPOSECATTLEFEEDHDR WHERE PLANT = :plant AND PROJECTNO = :projectNo";
+            Query query = session.createSQLQuery(sql);
+
+            query.setParameter("projectNo", projectNo);
+            query.setParameter("plant", plant);
+
+            Long count = ((Number) query.uniqueResult()).longValue();
+
+            if (count > 0) {
+                recordExists = true;
+            }
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            session.close();
+        }
+        return recordExists;
+    }
+
+    @Override
+    public ComposeCattleFeedHDR getComposeCattleFeedHDR(String plant, String projectNo) {
+        Session session = sessionFactory.openSession();
+        ComposeCattleFeedHDR composeCattleFeedHDR = null;
+        try {
+            String sql = "SELECT TOP 1 PLANT, ID, PROJECTNO, TOTAL_QTY, TOTAL_UOM, PROCESSED_QTY, PENDING_QTY, CRAT, CRBY, UPAT, UPBY " +
+                    " FROM "+ plant +"_COMPOSECATTLEFEEDHDR WHERE PLANT = :plant AND PROJECTNO = :projectNo";
+
+            Query query = session.createSQLQuery(sql);
+
+            query.setParameter("plant", plant);
+            query.setParameter("projectNo", projectNo);
+
+            Object[] row = (Object[]) query.uniqueResult();
+
+            if(row != null) {
+                composeCattleFeedHDR = ComposeCattleFeedHDR.builder()
+                        .plant((String) row[0])
+                        .id((int) row[1])
+                        .projectNo((String) row[2])
+                        .totalQty((double) row[3])
+                        .totalUOM((String) row[4])
+                        .processedQty((double) row[5])
+                        .pendingQty((double) row[6])
+                        .crAt((String) row[7])
+                        .crBy((String) row[8])
+                        .upAt((String) row[9])
+                        .upBy((String) row[10])
+                        .build();
+            }
+
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            session.close();
+        }
+        return composeCattleFeedHDR;
+    }
+
+    @Override
+    public Integer updateComposeCattleFeedHdr(String plant, ComposeCattleFeedHDR existingComposeCattleFeedHdr) {
+        Session session = sessionFactory.openSession();
+        Integer result = 0;
+        try {
+            String sql = "UPDATE " + plant + "_COMPOSECATTLEFEEDHDR SET TOTAL_QTY = :totalQty, TOTAL_UOM = :totalUom, " +
+                    "PROCESSED_QTY = :processedQty, PENDING_QTY = :pendingQty, UPAT = :upAt, UPBY = :upBy WHERE PLANT = :plant AND PROJECTNO = :projectNo";
+
+            session.beginTransaction();
+            Query query = session.createSQLQuery(sql);
+            DateTimeCalc dateTimeCalc = new DateTimeCalc();
+            query.setParameter("plant", plant);
+            query.setParameter("totalQty", existingComposeCattleFeedHdr.getTotalQty());
+            query.setParameter("totalUom", existingComposeCattleFeedHdr.getTotalUOM());
+            query.setParameter("processedQty", existingComposeCattleFeedHdr.getProcessedQty());
+            query.setParameter("pendingQty", existingComposeCattleFeedHdr.getPendingQty());
+            query.setParameter("upAt", dateTimeCalc.getTodayDateTime());
+            query.setParameter("upBy", null);
+            query.setParameter("projectNo", existingComposeCattleFeedHdr.getProjectNo());
+
+            result = query.executeUpdate();
+            session.getTransaction().commit();
+        } catch (Exception ex) {
+            session.getTransaction().rollback();
+            throw new RuntimeException(ex);
+        } finally {
+            session.close();
+        }
+
+        return result;
+    }
+
+    @Override
+    public Integer saveComposeCattleFeedHdr(String plant, ComposeCattleFeedHDR composeCattleFeedHDR) {
+        Integer result = 0;
+        Session session = sessionFactory.openSession();
+        try {
+            String sql = "INSERT INTO " + plant + "_COMPOSECATTLEFEEDHDR (PLANT, PROJECTNO, TOTAL_QTY, TOTAL_UOM, PROCESSED_QTY, PENDING_QTY, CRAT, CRBY) " +
+                    " VALUES (:plant, :projectNo, :totalQty, :totalUom, :processedQty, :pendingQty, :crAt, :crBy)";
+
+            session.beginTransaction();
+            DateTimeCalc dateTimeCalc = new DateTimeCalc();
+            Query query = session.createSQLQuery(sql);
+            query.setParameter("plant", plant);
+            query.setParameter("projectNo", composeCattleFeedHDR.getProjectNo());
+            query.setParameter("totalQty", composeCattleFeedHDR.getTotalQty());
+            query.setParameter("totalUom", composeCattleFeedHDR.getTotalUOM());
+            query.setParameter("processedQty", composeCattleFeedHDR.getProcessedQty());
+            query.setParameter("pendingQty", composeCattleFeedHDR.getPendingQty());
+            query.setParameter("crAt", dateTimeCalc.getTodayDateTime());
+            query.setParameter("crBy", null);
+
+            result = query.executeUpdate();
+
+            session.getTransaction().commit();
+        } catch (Exception ex) {
+            session.getTransaction().rollback();
+            throw new RuntimeException(ex);
+        } finally {
+            session.close();
+        }
+
+        return result;
+    }
+
+    @Override
     public Integer saveOWCDet(String plant, OWCDET owcDet) {
         Session session = sessionFactory.openSession();
         Integer detId = 0;
@@ -803,6 +975,321 @@ public class WastageDaoImpl implements WastageDao{
         } finally {
             session.close();
         }
+        return result;
+    }
+
+    @Override
+    public List<WastageCalendarResponseDTO> hasWastage(String plant, String projectNo, CalendarRequestDTO calendarRequestDTO) throws ParseException {
+        Session session = sessionFactory.openSession();
+        List<WastageCalendarResponseDTO> result = new ArrayList<>();
+        try {
+
+            for(String date : calendarRequestDTO.getDateList()) {
+                String sql = "  SELECT COUNT(*) AS RESULT FROM " + plant + "_DAILY_WASTAGE_DETAILS_DET " +
+                        "WHERE DATE = :date AND PROJECTNO = :projectNo";
+
+                Query query = session.createSQLQuery(sql);
+                query.setParameter("projectNo", projectNo);
+
+                SimpleDateFormat inputFormat = new SimpleDateFormat("dd-MM-yyyy");
+                Date parsedDate = inputFormat.parse(date);
+                query.setParameter("date", parsedDate);
+
+                Number row = (Number) query.uniqueResult();
+
+                WastageCalendarResponseDTO wastageCalendarResponseDTO = new WastageCalendarResponseDTO();
+                wastageCalendarResponseDTO.setDate(date);
+                wastageCalendarResponseDTO.setHasWastage(row.intValue());
+
+                result.add(wastageCalendarResponseDTO);
+            }
+
+        } catch (Exception ex) {
+            throw ex;
+        } finally {
+            session.close();
+        }
+
+        return result;
+    }
+
+    @Override
+    public List<WastageCalendarResponseDTO> hasOrganicWastage(String plant, String projectNo, CalendarRequestDTO calendarRequestDTO) throws ParseException {
+        Session session = sessionFactory.openSession();
+        List<WastageCalendarResponseDTO> result = new ArrayList<>();
+        try {
+
+            for(String date : calendarRequestDTO.getDateList()) {
+                String sql = "  SELECT COUNT(*) AS RESULT FROM " + plant + "_ORGANIC_WASTE_DET " +
+                        "WHERE DATE = :date AND PROJECTNO = :projectNo";
+
+                Query query = session.createSQLQuery(sql);
+                query.setParameter("projectNo", projectNo);
+
+                SimpleDateFormat inputFormat = new SimpleDateFormat("dd-MM-yyyy");
+                Date parsedDate = inputFormat.parse(date);
+                query.setParameter("date", parsedDate);
+
+                Number row = (Number) query.uniqueResult();
+
+                WastageCalendarResponseDTO wastageCalendarResponseDTO = new WastageCalendarResponseDTO();
+                wastageCalendarResponseDTO.setDate(date);
+                wastageCalendarResponseDTO.setHasWastage(row.intValue());
+
+                result.add(wastageCalendarResponseDTO);
+            }
+
+        } catch (Exception ex) {
+            throw ex;
+        } finally {
+            session.close();
+        }
+
+        return result;
+    }
+
+    @Override
+    public List<WastageCalendarResponseDTO> hasInorganicWastage(String plant, String projectNo, CalendarRequestDTO calendarRequestDTO) throws ParseException {
+        Session session = sessionFactory.openSession();
+        List<WastageCalendarResponseDTO> result = new ArrayList<>();
+        try {
+
+            for(String date : calendarRequestDTO.getDateList()) {
+                String sql = "  SELECT COUNT(*) AS RESULT FROM " + plant + "_INORGANIC_WASTE_DET " +
+                        "WHERE DATE = :date AND PROJECTNO = :projectNo";
+
+                Query query = session.createSQLQuery(sql);
+                query.setParameter("projectNo", projectNo);
+
+                SimpleDateFormat inputFormat = new SimpleDateFormat("dd-MM-yyyy");
+                Date parsedDate = inputFormat.parse(date);
+                query.setParameter("date", parsedDate);
+
+                Number row = (Number) query.uniqueResult();
+
+                WastageCalendarResponseDTO wastageCalendarResponseDTO = new WastageCalendarResponseDTO();
+                wastageCalendarResponseDTO.setDate(date);
+                wastageCalendarResponseDTO.setHasWastage(row.intValue());
+
+                result.add(wastageCalendarResponseDTO);
+            }
+
+        } catch (Exception ex) {
+            throw ex;
+        } finally {
+            session.close();
+        }
+
+        return result;
+    }
+
+    @Override
+    public List<WastageCalendarResponseDTO> hasRejectedWastage(String plant, String projectNo, CalendarRequestDTO calendarRequestDTO) throws ParseException {
+        Session session = sessionFactory.openSession();
+        List<WastageCalendarResponseDTO> result = new ArrayList<>();
+        try {
+
+            for(String date : calendarRequestDTO.getDateList()) {
+                String sql = "  SELECT COUNT(*) AS RESULT FROM " + plant + "_REJECTED_WASTE_DET " +
+                        "WHERE DATE = :date AND PROJECTNO = :projectNo";
+
+                Query query = session.createSQLQuery(sql);
+                query.setParameter("projectNo", projectNo);
+
+                SimpleDateFormat inputFormat = new SimpleDateFormat("dd-MM-yyyy");
+                Date parsedDate = inputFormat.parse(date);
+                query.setParameter("date", parsedDate);
+
+                Number row = (Number) query.uniqueResult();
+
+                WastageCalendarResponseDTO wastageCalendarResponseDTO = new WastageCalendarResponseDTO();
+                wastageCalendarResponseDTO.setDate(date);
+                wastageCalendarResponseDTO.setHasWastage(row.intValue());
+
+                result.add(wastageCalendarResponseDTO);
+            }
+
+        } catch (Exception ex) {
+            throw ex;
+        } finally {
+            session.close();
+        }
+
+        return result;
+    }
+
+    @Override
+    public List<WastageCalendarResponseDTO> hasBiogas(String plant, String projectNo, CalendarRequestDTO calendarRequestDTO) throws ParseException {
+        Session session = sessionFactory.openSession();
+        List<WastageCalendarResponseDTO> result = new ArrayList<>();
+        try {
+
+            for(String date : calendarRequestDTO.getDateList()) {
+                String sql = "  SELECT COUNT(*) AS RESULT FROM " + plant + "_BIOGASDET " +
+                        "WHERE DATE = :date AND PROJECTNO = :projectNo";
+
+                Query query = session.createSQLQuery(sql);
+                query.setParameter("projectNo", projectNo);
+
+                SimpleDateFormat inputFormat = new SimpleDateFormat("dd-MM-yyyy");
+                Date parsedDate = inputFormat.parse(date);
+                query.setParameter("date", parsedDate);
+
+                Number row = (Number) query.uniqueResult();
+
+                WastageCalendarResponseDTO wastageCalendarResponseDTO = new WastageCalendarResponseDTO();
+                wastageCalendarResponseDTO.setDate(date);
+                wastageCalendarResponseDTO.setHasWastage(row.intValue());
+
+                result.add(wastageCalendarResponseDTO);
+            }
+
+        } catch (Exception ex) {
+            throw ex;
+        } finally {
+            session.close();
+        }
+
+        return result;
+    }
+
+    @Override
+    public List<WastageCalendarResponseDTO> hasOwcMachineSum(String plant, String projectNo, CalendarRequestDTO calendarRequestDTO) throws ParseException {
+        Session session = sessionFactory.openSession();
+        List<WastageCalendarResponseDTO> result = new ArrayList<>();
+        try {
+
+            for(String date : calendarRequestDTO.getDateList()) {
+                String sql = "SELECT COUNT(*) AS RESULT FROM " + plant + "_OWCDET " +
+                        "WHERE DATE = :date AND PROJECTNO = :projectNo";
+
+                Query query = session.createSQLQuery(sql);
+                query.setParameter("projectNo", projectNo);
+
+                SimpleDateFormat inputFormat = new SimpleDateFormat("dd-MM-yyyy");
+                Date parsedDate = inputFormat.parse(date);
+                query.setParameter("date", parsedDate);
+
+                Number row = (Number) query.uniqueResult();
+
+                WastageCalendarResponseDTO wastageCalendarResponseDTO = new WastageCalendarResponseDTO();
+                wastageCalendarResponseDTO.setDate(date);
+                wastageCalendarResponseDTO.setHasWastage(row.intValue());
+
+                result.add(wastageCalendarResponseDTO);
+            }
+
+        } catch (Exception ex) {
+            throw ex;
+        } finally {
+            session.close();
+        }
+
+        return result;
+    }
+
+    @Override
+    public List<WastageCalendarResponseDTO> hasComposeCattleFeet(String plant, String projectNo, CalendarRequestDTO calendarRequestDTO) throws ParseException {
+        Session session = sessionFactory.openSession();
+        List<WastageCalendarResponseDTO> result = new ArrayList<>();
+        try {
+
+            for(String date : calendarRequestDTO.getDateList()) {
+                String sql = "SELECT COUNT(*) AS RESULT FROM " + plant + "_COMPOSECATTLEFEEDDET " +
+                        "WHERE DATE = :date AND PROJECTNO = :projectNo";
+
+                Query query = session.createSQLQuery(sql);
+                query.setParameter("projectNo", projectNo);
+
+                SimpleDateFormat inputFormat = new SimpleDateFormat("dd-MM-yyyy");
+                Date parsedDate = inputFormat.parse(date);
+                query.setParameter("date", parsedDate);
+
+                Number row = (Number) query.uniqueResult();
+
+                WastageCalendarResponseDTO wastageCalendarResponseDTO = new WastageCalendarResponseDTO();
+                wastageCalendarResponseDTO.setDate(date);
+                wastageCalendarResponseDTO.setHasWastage(row.intValue());
+
+                result.add(wastageCalendarResponseDTO);
+            }
+
+        } catch (Exception ex) {
+            throw ex;
+        } finally {
+            session.close();
+        }
+
+        return result;
+    }
+
+    @Override
+    public List<WastageCalendarResponseDTO> hasReceivedOwcOutcome(String plant, String projectNo, CalendarRequestDTO calendarRequestDTO) throws ParseException {
+        Session session = sessionFactory.openSession();
+        List<WastageCalendarResponseDTO> result = new ArrayList<>();
+        try {
+
+            for(String date : calendarRequestDTO.getDateList()) {
+                String sql = "SELECT COUNT(*) AS RESULT FROM " + plant + "_OWCOUTCOMEDET " +
+                        "WHERE DATE = :date AND PROJECTNO = :projectNo";
+
+                Query query = session.createSQLQuery(sql);
+                query.setParameter("projectNo", projectNo);
+
+                SimpleDateFormat inputFormat = new SimpleDateFormat("dd-MM-yyyy");
+                Date parsedDate = inputFormat.parse(date);
+                query.setParameter("date", parsedDate);
+
+                Number row = (Number) query.uniqueResult();
+
+                WastageCalendarResponseDTO wastageCalendarResponseDTO = new WastageCalendarResponseDTO();
+                wastageCalendarResponseDTO.setDate(date);
+                wastageCalendarResponseDTO.setHasWastage(row.intValue());
+
+                result.add(wastageCalendarResponseDTO);
+            }
+
+        } catch (Exception ex) {
+            throw ex;
+        } finally {
+            session.close();
+        }
+
+        return result;
+    }
+
+    @Override
+    public List<WastageCalendarResponseDTO> hasMovedOwcOutcome(String plant, String projectNo, CalendarRequestDTO calendarRequestDTO) throws ParseException {
+        Session session = sessionFactory.openSession();
+        List<WastageCalendarResponseDTO> result = new ArrayList<>();
+        try {
+
+            for(String date : calendarRequestDTO.getDateList()) {
+                String sql = "SELECT COUNT(*) AS RESULT FROM " + plant + "_MOVED_OWCOUTCOMEDET " +
+                        "WHERE DATE = :date AND PROJECTNO = :projectNo";
+
+                Query query = session.createSQLQuery(sql);
+                query.setParameter("projectNo", projectNo);
+
+                SimpleDateFormat inputFormat = new SimpleDateFormat("dd-MM-yyyy");
+                Date parsedDate = inputFormat.parse(date);
+                query.setParameter("date", parsedDate);
+
+                Number row = (Number) query.uniqueResult();
+
+                WastageCalendarResponseDTO wastageCalendarResponseDTO = new WastageCalendarResponseDTO();
+                wastageCalendarResponseDTO.setDate(date);
+                wastageCalendarResponseDTO.setHasWastage(row.intValue());
+
+                result.add(wastageCalendarResponseDTO);
+            }
+
+        } catch (Exception ex) {
+            throw ex;
+        } finally {
+            session.close();
+        }
+
         return result;
     }
 
@@ -1685,16 +2172,24 @@ public class WastageDaoImpl implements WastageDao{
 
 
     @Override
-    public List<BioGasDTO> getBioGasSummary(String plant, String projectNo) {
+    public List<BioGasDTO> getBioGasSummary(String plant, String projectNo, String date) {
         Session session = sessionFactory.openSession();
         List<BioGasDTO> bioGasDTOList = null;
         try {
             String sql = "SELECT PROJECTNO, DATE, QTY, UOM, EMPCODE FROM " + plant + "_BIOGASDET WHERE PROJECTNO = :projectNo " +
-                    "AND PLANT = :plant";
+                    "AND PLANT = :plant AND (DATE = :date OR :date IS NULL)";
             Query query = session.createSQLQuery(sql);
 
             query.setParameter("projectNo", projectNo);
             query.setParameter("plant", plant);
+
+            if (date != null) {
+                java.util.Date utilDate = new SimpleDateFormat("dd-MM-yyyy").parse(date);
+                java.sql.Date sqlDate = new java.sql.Date(utilDate.getTime());
+                query.setParameter("date", sqlDate);
+            } else {
+                query.setParameter("date", null,  org.hibernate.type.DateType.INSTANCE);
+            }
 
             List<Object[]> rows = query.list();
             bioGasDTOList = new ArrayList<>();
@@ -1719,17 +2214,67 @@ public class WastageDaoImpl implements WastageDao{
     }
 
     @Override
-    public List<OWCMachineDTO> getOWCSummary(String plant, String projectNo) {
+    public List<ComposeCattleFeedDTO> getComposeCattleFeedSummary(String plant, String projectNo, String date) {
+        Session session = sessionFactory.openSession();
+        List<ComposeCattleFeedDTO> composeCattleFeedDTOList = null;
+        try {
+            String sql = "SELECT PROJECTNO, DATE, QTY, UOM, EMPCODE FROM " + plant + "_COMPOSECATTLEFEEDDET WHERE PROJECTNO = :projectNo " +
+                    "AND PLANT = :plant AND (DATE = :date OR :date IS NULL)";
+            Query query = session.createSQLQuery(sql);
+
+            query.setParameter("projectNo", projectNo);
+            query.setParameter("plant", plant);
+
+            if (date != null) {
+                java.util.Date utilDate = new SimpleDateFormat("dd-MM-yyyy").parse(date);
+                java.sql.Date sqlDate = new java.sql.Date(utilDate.getTime());
+                query.setParameter("date", sqlDate);
+            } else {
+                query.setParameter("date", null,  org.hibernate.type.DateType.INSTANCE);
+            }
+
+            List<Object[]> rows = query.list();
+            composeCattleFeedDTOList = new ArrayList<>();
+
+            for(Object[] row: rows) {
+                ComposeCattleFeedDTO composeCattleFeedDTO = new ComposeCattleFeedDTO();
+                composeCattleFeedDTO.setProjectNo((String) row[0]);
+                composeCattleFeedDTO.setDate(new SimpleDateFormat("dd-MM-yyyy").format((java.util.Date) row[1]));
+                composeCattleFeedDTO.setQty((double) row[2]);
+                composeCattleFeedDTO.setUom((String) row[3]);
+                composeCattleFeedDTO.setEmpCode((String) row[4]);
+
+                composeCattleFeedDTOList.add(composeCattleFeedDTO);
+            }
+
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        } finally {
+            session.close();
+        }
+        return composeCattleFeedDTOList;
+    }
+
+    @Override
+    public List<OWCMachineDTO> getOWCSummary(String plant, String projectNo, String date) {
         Session session = sessionFactory.openSession();
         List<OWCMachineDTO> owcMachineDTOList = null;
         try {
             String sql = "SELECT ID, PROJECTNO, MACHINE_ID, (SELECT DESCRIPTION FROM " + plant +"_OWC_MACHINE_MST WHERE " +
                     "MACHINE_ID = owcDet.MACHINE_ID) AS MACHINE_NAME, DATE, QTY, UOM, EMPCODE FROM " + plant + "_OWCDET " +
-                    "AS owcDet WHERE PROJECTNO = :projectNo AND PLANT = :plant";
+                    "AS owcDet WHERE PROJECTNO = :projectNo AND PLANT = :plant AND (DATE = :date OR :date IS NULL)";
             Query query = session.createSQLQuery(sql);
 
             query.setParameter("projectNo", projectNo);
             query.setParameter("plant", plant);
+
+            if (date != null) {
+                java.util.Date utilDate = new SimpleDateFormat("dd-MM-yyyy").parse(date);
+                java.sql.Date sqlDate = new java.sql.Date(utilDate.getTime());
+                query.setParameter("date", sqlDate);
+            } else {
+                query.setParameter("date", null,  org.hibernate.type.DateType.INSTANCE);
+            }
 
             List<Object[]> rows = query.list();
             owcMachineDTOList = new ArrayList<>();
@@ -1790,17 +2335,25 @@ public class WastageDaoImpl implements WastageDao{
     }
 
     @Override
-    public List<OWCOutcomeDTO> getReceivedOWCOutcomeSummary(String plant, String projectNo) {
+    public List<OWCOutcomeDTO> getReceivedOWCOutcomeSummary(String plant, String projectNo, String date) {
         Session session = sessionFactory.openSession();
         List<OWCOutcomeDTO> owcOutcomeDTOList = null;
         try {
             String sql = "SELECT PROJECTNO, owc.MACHINE_ID, (SELECT DESCRIPTION FROM " + plant +"_OWC_MACHINE_MST WHERE MACHINE_ID = owc.MACHINE_ID) AS MACHINE_NAME, " +
                     "(SELECT ITEMDESC FROM " + plant + "_ITEMMST WHERE ITEM = owc.PRODUCT) AS PRODUCTNAME, DATE, QTY, UOM, EMPCODE FROM " + plant + "_OWCOUTCOMEDET owc WHERE PROJECTNO = :projectNo " +
-                    "AND PLANT = :plant";
+                    "AND PLANT = :plant AND (owc.DATE = :date OR :date IS NULL)";
             Query query = session.createSQLQuery(sql);
 
             query.setParameter("projectNo", projectNo);
             query.setParameter("plant", plant);
+
+            if (date != null) {
+                java.util.Date utilDate = new SimpleDateFormat("dd-MM-yyyy").parse(date);
+                java.sql.Date sqlDate = new java.sql.Date(utilDate.getTime());
+                query.setParameter("date", sqlDate);
+            } else {
+                query.setParameter("date", null,  org.hibernate.type.DateType.INSTANCE);
+            }
 
             List<Object[]> rows = query.list();
             owcOutcomeDTOList = new ArrayList<>();
@@ -1828,17 +2381,25 @@ public class WastageDaoImpl implements WastageDao{
     }
 
     @Override
-    public List<MovedOWCOutcomeDTO> getMovedOWCOutcomeSummary(String plant, String projectNo) {
+    public List<MovedOWCOutcomeDTO> getMovedOWCOutcomeSummary(String plant, String projectNo, String date) {
         Session session = sessionFactory.openSession();
         List<MovedOWCOutcomeDTO> movedOWCOutcomeDTOList = null;
         try {
             String sql = "SELECT OWC.PROJECTNO, OWC.TYPE, OWC.DATE, OWC.QTY, OWC.UOM, OWC.PRODUCT, IT.ITEMDESC FROM " + plant + "_MOVED_OWCOUTCOMEDET OWC " +
-                    "LEFT JOIN " + plant + "_ITEMMST IT ON OWC.PRODUCT = IT.ITEM WHERE OWC.PLANT = :plant AND OWC.PROJECTNO = :projectNo";
+                    "LEFT JOIN " + plant + "_ITEMMST IT ON OWC.PRODUCT = IT.ITEM WHERE OWC.PLANT = :plant AND OWC.PROJECTNO = :projectNo AND (OWC.DATE = :date OR :date IS NULL)";
 
             Query query = session.createSQLQuery(sql);
 
             query.setParameter("plant", plant);
             query.setParameter("projectNo", projectNo);
+
+            if (date != null) {
+                java.util.Date utilDate = new SimpleDateFormat("dd-MM-yyyy").parse(date);
+                java.sql.Date sqlDate = new java.sql.Date(utilDate.getTime());
+                query.setParameter("date", sqlDate);
+            } else {
+                query.setParameter("date", null,  org.hibernate.type.DateType.INSTANCE);
+            }
 
             List<Object[]> rows = query.list();
             movedOWCOutcomeDTOList = new ArrayList<>();
@@ -1909,16 +2470,24 @@ public class WastageDaoImpl implements WastageDao{
     }
 
     @Override
-    public List<OrganicWastageSummaryDTO> getOrganicWastageSummary(String plant, String projectNo) {
+    public List<OrganicWastageSummaryDTO> getOrganicWastageSummary(String plant, String projectNo, String date) {
         Session session = sessionFactory.openSession();
         List<OrganicWastageSummaryDTO> organicWastageSummaryDTOList = null;
         try {
             String sql = "SELECT PROJECTNO, DATE, QTY, UOM FROM " + plant + "_ORGANIC_WASTE_DET WHERE PLANT = :plant " +
-                    "AND PROJECTNO = :projectNo";
+                    "AND PROJECTNO = :projectNo AND (DATE = :date OR :date IS NULL)";
             Query query = session.createSQLQuery(sql);
 
             query.setParameter("projectNo", projectNo);
             query.setParameter("plant", plant);
+
+            if (date != null) {
+                java.util.Date utilDate = new SimpleDateFormat("dd-MM-yyyy").parse(date);
+                java.sql.Date sqlDate = new java.sql.Date(utilDate.getTime());
+                query.setParameter("date", sqlDate);
+            } else {
+                query.setParameter("date", null,  org.hibernate.type.DateType.INSTANCE);
+            }
 
             List<Object[]> rows = query.list();
             organicWastageSummaryDTOList = new ArrayList<>();
@@ -1942,12 +2511,12 @@ public class WastageDaoImpl implements WastageDao{
     }
 
     @Override
-    public List<RejectedWastageSummaryDTO> getRejectedWastageSummary(String plant, String projectNo) {
+    public List<RejectedWastageSummaryDTO> getRejectedWastageSummary(String plant, String projectNo, String date) {
         Session session = sessionFactory.openSession();
         List<RejectedWastageSummaryDTO> rejectedWastageSummaryDTOList = null;
         try {
             String sql = "SELECT PROJECTNO, DATE, QTY, UOM, WASTAGE_TYPE FROM " + plant + "_REJECTED_WASTE_DET WHERE PLANT = :plant " +
-                    "AND PROJECTNO = :projectNo AND WASTAGE_TYPE NOT IN :wastageTypes";
+                    "AND PROJECTNO = :projectNo AND WASTAGE_TYPE NOT IN :wastageTypes AND (DATE = :date OR :date IS NULL)";
             Query query = session.createSQLQuery(sql);
 
             List<String> notIncludedWastageTypes = new ArrayList<>();
@@ -1957,6 +2526,14 @@ public class WastageDaoImpl implements WastageDao{
             query.setParameter("projectNo", projectNo);
             query.setParameter("plant", plant);
             query.setParameter("wastageTypes", notIncludedWastageTypes);
+
+            if (date != null) {
+                java.util.Date utilDate = new SimpleDateFormat("dd-MM-yyyy").parse(date);
+                java.sql.Date sqlDate = new java.sql.Date(utilDate.getTime());
+                query.setParameter("date", sqlDate);
+            } else {
+                query.setParameter("date", null,  org.hibernate.type.DateType.INSTANCE);
+            }
 
             List<Object[]> rows = query.list();
             rejectedWastageSummaryDTOList = new ArrayList<>();
@@ -1981,17 +2558,25 @@ public class WastageDaoImpl implements WastageDao{
     }
 
     @Override
-    public List<InorganicWastageSummaryDTO> getInorganicWastageSummary(String plant, String projectNo) {
+    public List<InorganicWastageSummaryDTO> getInorganicWastageSummary(String plant, String projectNo, String date) {
         Session session = sessionFactory.openSession();
         List<InorganicWastageSummaryDTO> inorganicWastageSummaryDTOList = null;
         try {
             String sql = "SELECT IW.PROJECTNO, IW.DATE, IW.QTY, IW.UOM, IT.ITEMDESC  FROM " + plant + "_INORGANIC_WASTE_DET IW " +
-                    " LEFT JOIN " + plant + "_ITEMMST IT ON IW.ITEM = IT.ITEM  WHERE IW.PLANT = :plant " +
+                    " LEFT JOIN " + plant + "_ITEMMST IT ON IW.ITEM = IT.ITEM  WHERE IW.PLANT = :plant  AND (DATE = :date OR :date IS NULL) " +
                     "AND IW.PROJECTNO = :projectNo";
             Query query = session.createSQLQuery(sql);
 
             query.setParameter("projectNo", projectNo);
             query.setParameter("plant", plant);
+
+            if (date != null) {
+                java.util.Date utilDate = new SimpleDateFormat("dd-MM-yyyy").parse(date);
+                java.sql.Date sqlDate = new java.sql.Date(utilDate.getTime());
+                query.setParameter("date", sqlDate);
+            } else {
+                query.setParameter("date", null,  org.hibernate.type.DateType.INSTANCE);
+            }
 
             List<Object[]> rows = query.list();
             inorganicWastageSummaryDTOList = new ArrayList<>();
@@ -2021,12 +2606,12 @@ public class WastageDaoImpl implements WastageDao{
         List<OWCMachineMstDTO> OWCMachineMstDTOList = null;
         try {
             String sql = "SELECT PROJECTNO, MACHINE_ID, DESCRIPTION, STATUS FROM " + plant + "_OWC_MACHINE_MST " +
-                    "WHERE PROJECTNO = :projectNo AND PLANT = :plant";
+                    "WHERE PROJECTNO = :projectNo AND PLANT = :plant AND STATUS = :status";
             Query query = session.createSQLQuery(sql);
 
             query.setParameter("projectNo", projectNo);
             query.setParameter("plant", plant);
-
+            query.setParameter("status", OWCMachineStatus.RUNNING.name());
 
             List<Object[]> rows = query.list();
             OWCMachineMstDTOList = new ArrayList<>();

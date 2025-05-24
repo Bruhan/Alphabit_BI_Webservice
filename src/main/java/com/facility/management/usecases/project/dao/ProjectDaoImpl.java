@@ -1,7 +1,5 @@
 package com.facility.management.usecases.project.dao;
 
-import com.facility.management.persistence.models.EmployeeMaster;
-import com.facility.management.usecases.products.dto.ProductDTO;
 import com.facility.management.usecases.project.dto.ProjectDTO;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
@@ -24,8 +22,8 @@ public class ProjectDaoImpl implements ProjectDao{
         Session session = sessionFactory.openSession();
         List<ProjectDTO> projectDTOList = null;
         try {
-            String sql = "SELECT prj.PROJECT, prj.PROJECT_NAME, prj.PROJECT_DATE, prj.PROJECT_STATUS, prj.SUPERVISOR, " +
-                    "CONCAT(emp.FNAME, emp.LNAME), prj.LOC, prj.PROJECT_SITETYPE FROM " + plant + "_FINRECYCLEPROJECT prj LEFT JOIN " + plant +
+            String sql = "SELECT prj.PROJECT AS PROJECT, prj.CUSTPRNO AS CUSTPRNO, prj.PROJECT_NAME, prj.PROJECT_DATE, prj.PROJECT_STATUS, prj.SUPERVISOR, " +
+                    "CONCAT(emp.FNAME, emp.LNAME) AS EXECUTIVE_NAME, prj.LOC, prj.PROJECT_SITETYPE FROM " + plant + "_FINRECYCLEPROJECT prj LEFT JOIN " + plant +
                     "_EMP_MST emp ON prj.SUPERVISOR = emp.EMPNO WHERE prj.PLANT = :plant AND prj.PROJECT_STATUS = :projectStatus AND SAFETYSUPERVISOR = :executiveNo" +
                     " AND (PROJECT_SITETYPE = :type OR :type IS NULL)";
 
@@ -42,13 +40,14 @@ public class ProjectDaoImpl implements ProjectDao{
             for(Object[] row: rows) {
                 ProjectDTO projectDTO = new ProjectDTO();
                 projectDTO.setProjectCode((String) row[0]);
-                projectDTO.setProjectName((String) row[1]);
-                projectDTO.setProjectDate((String) row[2]);
-                projectDTO.setProjectStatus((String) row[3]);
-                projectDTO.setSupervisorCode((String) row[4]);
-                projectDTO.setSupervisorName((String) row[5]);
-                projectDTO.setLocation((String) row[6]);
-                projectDTO.setProjectType((String) row[7]);
+                projectDTO.setCustomerProjectCode((String) row[1]);
+                projectDTO.setProjectName((String) row[2]);
+                projectDTO.setProjectDate((String) row[3]);
+                projectDTO.setProjectStatus((String) row[4]);
+                projectDTO.setSupervisorCode((String) row[5]);
+                projectDTO.setSupervisorName((String) row[6]);
+                projectDTO.setLocation((String) row[7]);
+                projectDTO.setProjectType((String) row[8]);
 
                 projectDTOList.add(projectDTO);
             }
@@ -68,8 +67,8 @@ public class ProjectDaoImpl implements ProjectDao{
         List<ProjectDTO> projectDTOList = null;
         List<Integer> projectHdrIdList;
         try {
-            String sql_1 = "SELECT prj.PROJECT, prj.PROJECT_NAME, prj.PROJECT_DATE, prj.PROJECT_STATUS, prj.SUPERVISOR, " +
-                    "CONCAT(emp.FNAME, emp.LNAME), prj.LOC, prj.PROJECT_SITETYPE FROM " + plant + "_FINRECYCLEPROJECT prj LEFT JOIN " + plant +
+            String sql_1 = "SELECT prj.PROJECT, prj.CUSTPRNO, prj.PROJECT_NAME, prj.PROJECT_DATE, prj.PROJECT_STATUS, prj.SUPERVISOR, " +
+                    "CONCAT(emp.FNAME, emp.LNAME) AS SUPERVISOR_NAME, prj.LOC, prj.PROJECT_SITETYPE FROM " + plant + "_FINRECYCLEPROJECT prj LEFT JOIN " + plant +
                     "_EMP_MST emp ON prj.SUPERVISOR = emp.EMPNO WHERE prj.PLANT = :plant AND prj.PROJECT_STATUS = :projectStatus AND SUPERVISOR = :supervisorNo" +
                     " AND (PROJECT_SITETYPE = :type OR :type IS NULL)";
 
@@ -86,13 +85,14 @@ public class ProjectDaoImpl implements ProjectDao{
             for(Object[] row: rows_1) {
                 ProjectDTO projectDTO = new ProjectDTO();
                 projectDTO.setProjectCode((String) row[0]);
-                projectDTO.setProjectName((String) row[1]);
-                projectDTO.setProjectDate((String) row[2]);
-                projectDTO.setProjectStatus((String) row[3]);
-                projectDTO.setSupervisorCode((String) row[4]);
-                projectDTO.setSupervisorName((String) row[5]);
-                projectDTO.setLocation((String) row[6]);
-                projectDTO.setProjectType((String) row[7]);
+                projectDTO.setCustomerProjectCode((String) row[1]);
+                projectDTO.setProjectName((String) row[2]);
+                projectDTO.setProjectDate((String) row[3]);
+                projectDTO.setProjectStatus((String) row[4]);
+                projectDTO.setSupervisorCode((String) row[5]);
+                projectDTO.setSupervisorName((String) row[6]);
+                projectDTO.setLocation((String) row[7]);
+                projectDTO.setProjectType((String) row[8]);
 
                 projectDTOList.add(projectDTO);
             }
@@ -112,8 +112,8 @@ public class ProjectDaoImpl implements ProjectDao{
                 projectHdrIdList.add(row);
             }
 
-            String sql_3 = "SELECT prj.PROJECT, prj.PROJECT_NAME, prj.PROJECT_DATE, prj.PROJECT_STATUS, prj.SUPERVISOR," +
-                    " CONCAT(emp.FNAME, emp.LNAME), prj.LOC, prj.PROJECT_SITETYPE FROM " + plant + "_FINRECYCLEPROJECT prj LEFT JOIN " + plant +
+            String sql_3 = "SELECT prj.PROJECT, prj.CUSTPRNO, prj.PROJECT_NAME, prj.PROJECT_DATE, prj.PROJECT_STATUS, prj.SUPERVISOR," +
+                    " CONCAT(emp.FNAME, emp.LNAME) AS SUPERVISOR_NAME, prj.LOC, prj.PROJECT_SITETYPE FROM " + plant + "_FINRECYCLEPROJECT prj LEFT JOIN " + plant +
                     "_EMP_MST emp ON prj.SUPERVISOR = emp.EMPNO WHERE prj.ID IN :projectHdrIdList AND prj.PROJECT_STATUS = :projectStatus " +
                     "AND prj.PLANT = :plant AND (PROJECT_SITETYPE = :type OR :type IS NULL)";
 
@@ -129,13 +129,14 @@ public class ProjectDaoImpl implements ProjectDao{
             for(Object[] row: rows_3) {
                 ProjectDTO projectDTO = new ProjectDTO();
                 projectDTO.setProjectCode((String) row[0]);
-                projectDTO.setProjectName((String) row[1]);
-                projectDTO.setProjectDate((String) row[2]);
-                projectDTO.setProjectStatus((String) row[3]);
-                projectDTO.setSupervisorCode((String) row[4]);
-                projectDTO.setSupervisorName((String) row[5]);
-                projectDTO.setLocation((String) row[6]);
-                projectDTO.setProjectType((String) row[7]);
+                projectDTO.setCustomerProjectCode((String) row[1]);
+                projectDTO.setProjectName((String) row[2]);
+                projectDTO.setProjectDate((String) row[3]);
+                projectDTO.setProjectStatus((String) row[4]);
+                projectDTO.setSupervisorCode((String) row[5]);
+                projectDTO.setSupervisorName((String) row[6]);
+                projectDTO.setLocation((String) row[7]);
+                projectDTO.setProjectType((String) row[8]);
 
                 projectDTOList.add(projectDTO);
             }

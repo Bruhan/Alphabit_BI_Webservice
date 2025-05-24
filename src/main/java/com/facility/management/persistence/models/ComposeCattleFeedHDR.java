@@ -9,9 +9,9 @@ import javax.persistence.*;
 @Getter
 @Setter
 @Entity
-@Table(name="##plant##PRODUCTREQUESTRECEIVEHDR")
+@Table(name="##plant##COMPOSECATTLEFEEDHDR")
 @Builder
-public class ProductRequestReceiveHDR {
+public class ComposeCattleFeedHDR {
     @Column(name = "PLANT")
     private String plant;
 
@@ -20,36 +20,27 @@ public class ProductRequestReceiveHDR {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private int id;
 
-    @Column(name = "PRODUCT_REQUEST_ID")
-    private int productRequestId;
-
     @Column(name = "PROJECTNO")
     private String projectNo;
 
-    @Column(name = "RECEIVED_DATE")
-    private String receivedDate;
+    @Column(name = "TOTAL_QTY")
+    private double totalQty;
 
-    @Column(name = "RECEIVER_ID")
-    private String receiverId;
+    @Column(name = "TOTAL_UOM")
+    private String totalUOM;
 
-    @Column(name = "RECEIVER_REMARKS")
-    private String receiverRemarks;
+    @Column(name = "PROCESSED_QTY")
+    private double processedQty;
 
-    @Column(name = "DRIVER_NAME")
-    private String driverName;
-
-    @Column(name = "VEHICLE_NUMBER")
-    private String vehicleNumber;
+    @Column(name = "PENDING_QTY")
+    private double pendingQty;
 
     @Column(name="CRAT")
     private String crAt;
-
     @Column(name="CRBY")
     private String crBy;
-
     @Column(name="UPAT")
     private String upAt;
-
     @Column(name="UPBY")
     private String upBy;
 }

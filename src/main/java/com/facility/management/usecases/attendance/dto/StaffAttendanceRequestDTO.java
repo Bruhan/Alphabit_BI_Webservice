@@ -14,4 +14,5 @@ public class StaffAttendanceRequestDTO {
     private String attendanceDate;
     private String attendanceTime;
     private String attendanceType;
+    private int isExecutive;
 }

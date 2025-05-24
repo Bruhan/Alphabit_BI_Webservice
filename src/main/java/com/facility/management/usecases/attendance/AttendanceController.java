@@ -117,8 +117,6 @@ public class AttendanceController {
         ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
         String plant = claimsDao.getPlt();
 //        String plant = "test";
-
-
         Integer result = attendanceService.saveAttendance(plant, attendanceData);
 
         ResultDao resultDao = new ResultDao();
@@ -156,8 +154,6 @@ public class AttendanceController {
         return new ResponseEntity<>(resultDao, HttpStatus.OK);
 
     }
-
-
 
     @GetMapping("/attendance/today")
     public ResponseEntity<Object> getTodayAttendance(HttpServletRequest request) throws Exception {
@@ -208,6 +204,22 @@ public class AttendanceController {
         resultDao.setMessage("SUCCESS");
         resultDao.setStatusCode(HttpStatus.OK.value());
         resultDao.setResults(projectWorkerDTOS);
+
+        return new ResponseEntity<>(resultDao, HttpStatus.OK);
+    }
+
+    @PutMapping("/hasAttendance/{projectNo}")
+    public ResponseEntity<Object> hasAttendance(HttpServletRequest request, @PathVariable("projectNo") String projectNo, @RequestBody CalendarRequestDTO calendarRequestDTO) throws Exception {
+        ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
+        String plant = claimsDao.getPlt();
+
+        List<AttendanceCalendarResponseDTO> result = attendanceService.hasAttendance(plant, projectNo, calendarRequestDTO);
+
+        ResultDao resultDao = new ResultDao();
+
+        resultDao.setMessage("SUCCESS");
+        resultDao.setStatusCode(HttpStatus.OK.value());
+        resultDao.setResults(result);
 
         return new ResponseEntity<>(resultDao, HttpStatus.OK);
     }

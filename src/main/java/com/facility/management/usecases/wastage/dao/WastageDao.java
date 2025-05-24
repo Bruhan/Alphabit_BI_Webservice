@@ -1,9 +1,11 @@
 package com.facility.management.usecases.wastage.dao;
 
 import com.facility.management.persistence.models.*;
+import com.facility.management.usecases.attendance.dto.CalendarRequestDTO;
 import com.facility.management.usecases.wastage.dto.*;
 import com.facility.management.usecases.wastage.enums.WastageType;
 
+import java.text.ParseException;
 import java.util.List;
 
 public interface WastageDao {
@@ -36,6 +38,16 @@ public interface WastageDao {
     Integer updateBioGasHdr(String plant, BioGasHDR bioGasHDR);
 
     Integer saveBioGasHdr(String plant, BioGasHDR bioGasHDR);
+
+    Integer saveComposeCattleFeedDet(String plant, ComposeCattleFeedDET composeCattleFeedDET);
+
+    boolean checkComposeCattleFeedHDR(String plant, String projectNo);
+
+    ComposeCattleFeedHDR getComposeCattleFeedHDR(String plant, String projectNo);
+
+    Integer updateComposeCattleFeedHdr(String plant, ComposeCattleFeedHDR existingComposeCattleFeedHdr);
+
+    Integer saveComposeCattleFeedHdr(String plant, ComposeCattleFeedHDR composeCattleFeedHDR);
 
     Integer saveOWCDet(String plant, OWCDET owcDet);
 
@@ -101,23 +113,25 @@ public interface WastageDao {
 
     boolean checkOWCOutcomeProductDET(String plant, String projectNo, String product);
 
-    List<BioGasDTO> getBioGasSummary(String plant, String projectNo);
+    List<BioGasDTO> getBioGasSummary(String plant, String projectNo, String date);
 
-    List<OWCMachineDTO> getOWCSummary(String plant, String projectNo);
+    List<ComposeCattleFeedDTO> getComposeCattleFeedSummary(String plant, String projectNo, String date);
+
+    List<OWCMachineDTO> getOWCSummary(String plant, String projectNo, String date);
 
     List<OWCMachineProductDTO> getOWCMachineProducts(String plant, String projectNo, int detId);
 
-    List<OWCOutcomeDTO> getReceivedOWCOutcomeSummary(String plant, String projectNo);
+    List<OWCOutcomeDTO> getReceivedOWCOutcomeSummary(String plant, String projectNo, String date);
 
-    List<MovedOWCOutcomeDTO> getMovedOWCOutcomeSummary(String plant, String projectNo);
+    List<MovedOWCOutcomeDTO> getMovedOWCOutcomeSummary(String plant, String projectNo, String date);
 
     List<WastageDTO> getWastageSummary(String plant, String projectNo, String date);
 
-    List<OrganicWastageSummaryDTO> getOrganicWastageSummary(String plant, String projectNo);
+    List<OrganicWastageSummaryDTO> getOrganicWastageSummary(String plant, String projectNo, String date);
 
-    List<RejectedWastageSummaryDTO> getRejectedWastageSummary(String plant, String projectNo);
+    List<RejectedWastageSummaryDTO> getRejectedWastageSummary(String plant, String projectNo, String date);
 
-    List<InorganicWastageSummaryDTO> getInorganicWastageSummary(String plant, String projectNo);
+    List<InorganicWastageSummaryDTO> getInorganicWastageSummary(String plant, String projectNo ,String date);
 
     List<OWCMachineMstDTO> getOWCMachines(String plant, String projectNo);
 
@@ -140,5 +154,21 @@ public interface WastageDao {
 
     Integer saveMovedOWCOutcomeDet(String plant, MoveOWCOutcomeRequest moveOWCOutcomeRequest);
 
+    List<WastageCalendarResponseDTO> hasWastage(String plant, String projectNo, CalendarRequestDTO calendarRequestDTO) throws ParseException;
 
+    List<WastageCalendarResponseDTO> hasOrganicWastage(String plant, String projectNo, CalendarRequestDTO calendarRequestDTO) throws ParseException;
+
+    List<WastageCalendarResponseDTO> hasInorganicWastage(String plant, String projectNo, CalendarRequestDTO calendarRequestDTO) throws ParseException;
+
+    List<WastageCalendarResponseDTO> hasRejectedWastage(String plant, String projectNo, CalendarRequestDTO calendarRequestDTO) throws ParseException;
+
+    List<WastageCalendarResponseDTO> hasBiogas(String plant, String projectNo, CalendarRequestDTO calendarRequestDTO) throws ParseException;
+
+    List<WastageCalendarResponseDTO> hasOwcMachineSum(String plant, String projectNo, CalendarRequestDTO calendarRequestDTO) throws ParseException;
+
+    List<WastageCalendarResponseDTO> hasComposeCattleFeet(String plant, String projectNo, CalendarRequestDTO calendarRequestDTO) throws ParseException;
+
+    List<WastageCalendarResponseDTO> hasReceivedOwcOutcome(String plant, String projectNo, CalendarRequestDTO calendarRequestDTO) throws ParseException;
+
+    List<WastageCalendarResponseDTO> hasMovedOwcOutcome(String plant, String projectNo, CalendarRequestDTO calendarRequestDTO) throws ParseException;
 }

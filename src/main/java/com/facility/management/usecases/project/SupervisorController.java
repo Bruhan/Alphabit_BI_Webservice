@@ -87,9 +87,9 @@ public class SupervisorController {
         ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
         String plant = claimsDao.getPlt();
         LoggerConfig.logger.info("get employee by employee code started for " + plant);
-        List<EmployeeMaster> employeeMaster = employeeMasterService.findByEmpCode(empcode, plant);
+        EmployeeMaster employeeMaster = employeeMasterService.findByEmpCode(empcode, plant);
         ResultDao resultdao = new ResultDao();
-        resultdao.setResults(employeeMaster.get(0));
+        resultdao.setResults(employeeMaster);
         return new ResponseEntity<>(resultdao, HttpStatus.OK);
     }
 

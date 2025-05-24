@@ -10,6 +10,7 @@ import java.util.List;
 public class UpdateWasteMovementRequestDTO {
     private Integer id;
     private String empNo;
+    private String date;
     private String projectNo;
     private String vehicleNo;
     private String driverNo;

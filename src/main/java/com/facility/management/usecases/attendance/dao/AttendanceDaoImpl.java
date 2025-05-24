@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
+import org.springframework.security.core.parameters.P;
 import org.springframework.stereotype.Repository;
 
 import java.io.IOException;
@@ -23,6 +24,8 @@ import java.sql.Timestamp;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 
 @Repository("AttendanceDao")
@@ -445,32 +448,71 @@ public class AttendanceDaoImpl implements AttendanceDao{
     }
 
     @Override
-    public StaffAttendanceDTO getStaffAttendanceByEmpId(String plant, int id) {
+    public StaffAttendanceDTO getStaffAttendanceByEmpId(String plant, int id, String attendanceDate, int isExecutive) throws ParseException {
         Session session = sessionFactory.openSession();
         String sql = null;
         StaffAttendanceDTO staffAttendanceDTO = null;
+        DateTimeCalc dateTimeCalc = new DateTimeCalc();
         try {
-            sql = "SELECT TOP (1) PLANT, ID, EMPID, Att_Date, Att_Time, ShiftStatus, Location_Lat, Location_Long FROM " + plant + "_Staffattendance " +
-                    "WHERE PLANT = :plant AND EMPID = :empId AND Att_Date = CAST(GETDATE() AS DATE) ORDER BY Att_Time DESC";
+            if(isExecutive == 0) {
+                if(attendanceDate.equals(dateTimeCalc.getTodayDateNormalFormat())) {
+                    sql = "SELECT TOP (1) PLANT, ID, EMPID, Att_Date, Att_Time, ShiftStatus, Location_Lat, Location_Long FROM " + plant + "_Staffattendance " +
+                            "WHERE PLANT = :plant AND EMPID = :empId AND (Att_Date = CAST(GETDATE() AS DATE)) ORDER BY Att_Time DESC";
+                } else {
+                    sql = "SELECT TOP (1) PLANT, ID, EMPID, Att_Date, Att_Time, ShiftStatus, Location_Lat, Location_Long FROM " + plant + "_Staffattendance " +
+                            "WHERE PLANT = :plant AND EMPID = :empId AND (Att_Date = CAST(GETDATE() AS DATE) OR Att_Date = CAST(GETDATE() - 1 AS DATE)) ORDER BY Att_Time DESC";
+                }
 
-            Query query = session.createSQLQuery(sql);
-            query.setParameter("plant", plant);
-            query.setParameter("empId", id);
+                Query query = session.createSQLQuery(sql);
+                query.setParameter("plant", plant);
+                query.setParameter("empId", id);
 
-            Object[] row = (Object[]) query.uniqueResult();
+                Object[] row = (Object[]) query.uniqueResult();
 
-            if (row != null) {
-                staffAttendanceDTO = new StaffAttendanceDTO();
-                staffAttendanceDTO.setPlant((String) row[0]);
-                staffAttendanceDTO.setId((BigInteger) row[1]);
-                staffAttendanceDTO.setEmpId((BigInteger) row[2]);
-                staffAttendanceDTO.setAttendanceDate(row[3] != null ? new SimpleDateFormat("dd-MM-yyyy").format((java.util.Date) row[3]) : null);
-                staffAttendanceDTO.setAttendanceTime(row[4] != null ? new SimpleDateFormat("dd-MM-yyyy'T'HH:mm:ss").format((java.util.Date) row[4]) : null);
-                staffAttendanceDTO.setShiftStatus((String) row[5]);
-                staffAttendanceDTO.setLocationLat((String) row[6]);
-                staffAttendanceDTO.setLocationLong((String) row[7]);
+                if (row != null) {
+                    staffAttendanceDTO = new StaffAttendanceDTO();
+                    staffAttendanceDTO.setPlant((String) row[0]);
+                    staffAttendanceDTO.setId((BigInteger) row[1]);
+                    staffAttendanceDTO.setEmpId((BigInteger) row[2]);
+                    staffAttendanceDTO.setAttendanceDate(row[3] != null ? new SimpleDateFormat("dd-MM-yyyy").format((java.util.Date) row[3]) : null);
+                    staffAttendanceDTO.setAttendanceTime(row[4] != null ? new SimpleDateFormat("dd-MM-yyyy'T'HH:mm:ss").format((java.util.Date) row[4]) : null);
+                    staffAttendanceDTO.setShiftStatus((String) row[5]);
+                    staffAttendanceDTO.setLocationLat((String) row[6]);
+                    staffAttendanceDTO.setLocationLong((String) row[7]);
+
+                }
+
+            } else {
+                sql = "SELECT TOP (1) PLANT, ID, EMPID, Att_Date, Att_Time, ShiftStatus, Location_Lat, Location_Long FROM " + plant + "_Staffattendance " +
+                        "WHERE PLANT = :plant AND EMPID = :empId AND Att_Date = CAST(:date AS DATE) ORDER BY Att_Time DESC";
+
+                Query query = session.createSQLQuery(sql);
+                query.setParameter("plant", plant);
+                query.setParameter("empId", id);
+
+                String inputDateStr = attendanceDate; // "04-04-2025"
+                SimpleDateFormat inputFormat = new SimpleDateFormat("dd-MM-yyyy");
+                Date formattedDate = inputFormat.parse(inputDateStr);
+
+                query.setParameter("date", formattedDate);
+
+                Object[] row = (Object[]) query.uniqueResult();
+
+                if (row != null) {
+                    staffAttendanceDTO = new StaffAttendanceDTO();
+                    staffAttendanceDTO.setPlant((String) row[0]);
+                    staffAttendanceDTO.setId((BigInteger) row[1]);
+                    staffAttendanceDTO.setEmpId((BigInteger) row[2]);
+                    staffAttendanceDTO.setAttendanceDate(row[3] != null ? new SimpleDateFormat("dd-MM-yyyy").format((java.util.Date) row[3]) : null);
+                    staffAttendanceDTO.setAttendanceTime(row[4] != null ? new SimpleDateFormat("dd-MM-yyyy'T'HH:mm:ss").format((java.util.Date) row[4]) : null);
+                    staffAttendanceDTO.setShiftStatus((String) row[5]);
+                    staffAttendanceDTO.setLocationLat((String) row[6]);
+                    staffAttendanceDTO.setLocationLong((String) row[7]);
+
+                }
 
             }
+
 
         } catch (Exception ex) {
             throw ex;
@@ -538,10 +580,6 @@ public class AttendanceDaoImpl implements AttendanceDao{
         List<StaffAttendanceDetailDTO> staffAttendanceDetailDTOList = new ArrayList<>();
         try {
             if(date.isEmpty() && startDate.isEmpty() && endDate.isEmpty() && empId == null) {
-//                sql = "SELECT ATT.ID, ATT.PLANT, ATT.EMPID, (SELECT CONCAT(FNAME, ' ', LNAME) FROM "+ plant +"_EMP_MST WHERE ID = EMP.ID) as empName,\n" +
-//                        "  Att_Date, Att_Time, ShiftStatus, Location_Lat, Location_Long, Permission, Narrations, StaffMonthid, (SELECT EMPNO FROM "+ plant +"_EMP_MST WHERE ID = EMP.ID) as empNo FROM " + plant + "_Staffattendance ATT\n" +
-//                        "  LEFT JOIN " + plant + "_EMP_MST EMP ON ATT.EMPID = EMP.ID\n" +
-//                        "  WHERE Att_Date LIKE '%%' OR Att_Date BETWEEN '' AND '' OR ATT.EMPID LIKE '%%' ";
 
                 sql = "WITH FilteredAttendance AS (SELECT ATT.EMPID, ATT.Att_Date, MAX(CASE WHEN ATT.ShiftStatus = 'EOUT' THEN ATT.Att_Time END) AS EOUT_Att_Time, " +
                         "MIN(CASE WHEN ATT.ShiftStatus = 'MIN' THEN ATT.Att_Time END) AS MIN_Att_Time,  MIN(CASE WHEN ATT.ShiftStatus = 'MIN' OR ATT.ShiftStatus = 'EOUT' OR ATT.ShiftStatus = 'ABSENT' OR ATT.ShiftStatus = 'WEEKOFF' OR ATT.ShiftStatus = 'HOLIDAY' OR ATT.ShiftStatus = 'COMPOFF' THEN ATT.ShiftStatus END) AS ShiftStatus, " +
@@ -551,12 +589,13 @@ public class AttendanceDaoImpl implements AttendanceDao{
                         " MIN(CASE WHEN ATT.ShiftStatus = 'MIN' THEN ATT.Location_Long END) AS MIN_Location_Long " +
                         " FROM " + plant +"_Staffattendance ATT LEFT JOIN " + plant +"_EMP_MST EMP ON ATT.EMPID = EMP.ID" +
                         " LEFT JOIN " + plant + "_PROJECT_WORKERLIST WRK ON ATT.EMPID = WRK.EMPID" +
-                        " WHERE (ATT.Att_Date LIKE '%%' OR ATT.Att_Date BETWEEN '' AND '' OR ATT.EMPID LIKE '%%') AND WRK.PROJECTNO = :projectNo " +
+                        " WHERE (ATT.Att_Date LIKE '%%' OR ATT.Att_Date BETWEEN '' AND '' OR ATT.EMPID LIKE '%%') AND WRK.PROJECTNO = :projectNo AND WRK.STATUS = :status" +
                         " GROUP BY ATT.EMPID, ATT.Att_Date, EMP.PLANT, EMP.ID" +
                         ") SELECT * FROM FilteredAttendance";
 
                 Query query = session.createSQLQuery(sql);
                 query.setParameter("projectNo", projectNo);
+                query.setParameter("status", 1);
                 List<Object[]> rows = query.list();
                 for (Object[] row : rows) {
                     StaffAttendanceDetailDTO dto = new StaffAttendanceDetailDTO();
@@ -577,19 +616,6 @@ public class AttendanceDaoImpl implements AttendanceDao{
 
             }
             else {
-//                sql = "SELECT ATT.ID, ATT.PLANT, ATT.EMPID, (SELECT CONCAT(FNAME, ' ', LNAME) FROM "+ plant +"_EMP_MST WHERE ID = EMP.ID) as empName,\n" +
-//                        "  Att_Date, Att_Time, ShiftStatus, Location_Lat, Location_Long, Permission, Narrations, StaffMonthid, (SELECT EMPNO FROM "+ plant +"_EMP_MST WHERE ID = EMP.ID) as empNo FROM " + plant + "_Staffattendance ATT\n" +
-//                        "  LEFT JOIN " + plant + "_EMP_MST EMP ON ATT.EMPID = EMP.ID\n" +
-//                        "  WHERE Att_Date = :date OR Att_Date BETWEEN :startDate AND :endDate OR ATT.EMPID = :empId";
-
-//                sql = "WITH FilteredAttendance AS (SELECT ATT.EMPID, ATT.Att_Date, ATT.EMPID, (SELECT CONCAT(FNAME, ' ', LNAME) " +
-//                        " FROM "+ plant +"_EMP_MST WHERE ID = EMP.ID) AS empName, ATT.Att_Date, ATT.Att_Time, ATT.ShiftStatus, " +
-//                        " ATT.Location_Lat, ATT.Location_Long, ATT.Permission, ATT.Narrations, ATT.StaffMonthid, (SELECT EMPNO " +
-//                        " FROM "+ plant +"_EMP_MST WHERE ID = EMP.ID) AS empNo, ROW_NUMBER() OVER (PARTITION BY ATT.EMPID, ATT.Att_Date " +
-//                        " ORDER BY CASE WHEN ATT.ShiftStatus = 'EOUT' THEN 1 ELSE 2 END, ATT.Att_Time DESC) AS RowNum" +
-//                        " FROM " + plant +"_Staffattendance ATT LEFT JOIN " + plant +"_EMP_MST EMP ON ATT.EMPID = EMP.ID" +
-//                        " WHERE ATT.Att_Date = :date OR ATT.Att_Date BETWEEN :startDate AND :endDate OR ATT.EMPID = :empId" +
-//                        ") SELECT * FROM FilteredAttendance WHERE RowNum = 1";
 
                 sql = "WITH FilteredAttendance AS (SELECT ATT.EMPID, ATT.Att_Date, MAX(CASE WHEN ATT.ShiftStatus = 'EOUT' THEN ATT.Att_Time END) AS EOUT_Att_Time, " +
                         "MIN(CASE WHEN ATT.ShiftStatus = 'MIN' THEN ATT.Att_Time END) AS MIN_Att_Time,  MIN(CASE WHEN ATT.ShiftStatus = 'MIN' OR ATT.ShiftStatus = 'EOUT' OR ATT.ShiftStatus = 'ABSENT' OR ATT.ShiftStatus = 'WEEKOFF' OR ATT.ShiftStatus = 'HOLIDAY' OR ATT.ShiftStatus = 'COMPOFF' THEN ATT.ShiftStatus END) AS ShiftStatus, " +
@@ -599,7 +625,7 @@ public class AttendanceDaoImpl implements AttendanceDao{
                         " MIN(CASE WHEN ATT.ShiftStatus = 'MIN' THEN ATT.Location_Long END) AS MIN_Location_Long " +
                         " FROM " + plant +"_Staffattendance ATT LEFT JOIN " + plant +"_EMP_MST EMP ON ATT.EMPID = EMP.ID" +
                         " LEFT JOIN " + plant + "_PROJECT_WORKERLIST WRK ON ATT.EMPID = WRK.EMPID" +
-                        " WHERE (ATT.Att_Date = :date OR ATT.Att_Date BETWEEN :startDate AND :endDate OR ATT.EMPID = :empId) AND WRK.PROJECTNO = :projectNo " +
+                        " WHERE (ATT.Att_Date = :date OR ATT.Att_Date BETWEEN :startDate AND :endDate OR ATT.EMPID = :empId) AND WRK.PROJECTNO = :projectNo AND (WRK.PROJECTIN_DATE <= :date AND ISNULL(WRK.PROJECTOUT_DATE, GETDATE()) >= :date)" +
                         " GROUP BY ATT.EMPID, ATT.Att_Date, EMP.PLANT, EMP.ID" +
                         ") SELECT * FROM FilteredAttendance";
 
@@ -608,6 +634,7 @@ public class AttendanceDaoImpl implements AttendanceDao{
                 SimpleDateFormat dateFormat = new SimpleDateFormat("dd-MM-yyyy");
 
                 query.setParameter("projectNo", projectNo);
+//                query.setParameter("status", 1);
 
                 if(!date.isEmpty()) {
                     java.util.Date parsedDate = dateFormat.parse(date);
@@ -767,7 +794,7 @@ public class AttendanceDaoImpl implements AttendanceDao{
         Session session = sessionFactory.openSession();
         FinRecycleProjectDTO finRecycleProjectDTO = null;
         try {
-            String sql = "SELECT [PLANT], [ID], [CUSTNO], [PROJECT], [PROJECT_NAME], [PROJECT_STATUS] " +
+            String sql = "SELECT PLANT, ID, CUSTNO, PROJECT, PROJECT_NAME, PROJECT_STATUS " +
                     "FROM " + plant + "_FINRECYCLEPROJECT WHERE PLANT = :plant AND PROJECT = :projectNo";
 
             Query query = session.createSQLQuery(sql);
@@ -797,7 +824,7 @@ public class AttendanceDaoImpl implements AttendanceDao{
     }
 
     @Override
-    public Integer saveProjectWorker(String plant, ProjectWorkerRequestDTO projectWorkerRequestDTO) {
+    public Integer saveProjectWorker(String plant, ProjectWorkerRequestDTO projectWorkerRequestDTO) throws ParseException {
         Session session = sessionFactory.openSession();
         Integer result = 0;
         try {
@@ -814,7 +841,11 @@ public class AttendanceDaoImpl implements AttendanceDao{
             query.setParameter("empId", projectWorkerRequestDTO.getEmpId());
             query.setParameter("empCode", projectWorkerRequestDTO.getEmpNo());
             query.setParameter("empName", projectWorkerRequestDTO.getEmpName());
-            query.setParameter("projectInDate", dateTimeCalc.getTodayDMYDate());
+
+            SimpleDateFormat inputFormat = new SimpleDateFormat("dd-MM-yyyy");
+            Date parsedDate = inputFormat.parse(projectWorkerRequestDTO.getDate());
+
+            query.setParameter("projectInDate", parsedDate);
             query.setParameter("status", 1);
             query.setParameter("crAt", dateTimeCalc.getTodayDateTime());
 
@@ -874,29 +905,92 @@ public class AttendanceDaoImpl implements AttendanceDao{
     }
 
     @Override
-    public Integer toggleProjectWorker(String plant, ToggleProjectWorkerDTO toggleProjectWorkerDTO) {
+    public Integer toggleProjectWorker(String plant, ToggleProjectWorkerDTO toggleProjectWorkerDTO) throws ParseException {
         Session session = sessionFactory.openSession();
         Integer result = 0;
         try {
-            String sql = "UPDATE [" + plant + "_PROJECT_WORKERLIST] SET STATUS = :status, UPAT = :upAt WHERE " +
-                    "PROJECTNO = :projectNo AND EMPID = :empId AND PLANT = :plant";
+            if(toggleProjectWorkerDTO.getStatus() == 0) {
+                String sql = "UPDATE [" + plant + "_PROJECT_WORKERLIST] SET STATUS = :status, PROJECTOUT_DATE = :projectOutDate, " +
+                        "UPAT = :upAt WHERE PROJECTNO = :projectNo AND EMPID = :empId AND PLANT = :plant";
 
-            session.beginTransaction();
-            Query query = session.createSQLQuery(sql);
-            DateTimeCalc dateTimeCalc = new DateTimeCalc();
+                session.beginTransaction();
+                Query query = session.createSQLQuery(sql);
+                DateTimeCalc dateTimeCalc = new DateTimeCalc();
 
-            query.setParameter("plant", plant);
-            query.setParameter("projectNo", toggleProjectWorkerDTO.getCurrentProjectNo());
-            query.setParameter("empId", toggleProjectWorkerDTO.getEmpId());
-            query.setParameter("status", toggleProjectWorkerDTO.getStatus());
-            query.setParameter("upAt", dateTimeCalc.getTodayDateTime());
+                query.setParameter("plant", plant);
+                query.setParameter("projectNo", toggleProjectWorkerDTO.getCurrentProjectNo());
+                query.setParameter("empId", toggleProjectWorkerDTO.getEmpId());
+                query.setParameter("status", toggleProjectWorkerDTO.getStatus());
 
-            result = query.executeUpdate();
-            session.getTransaction().commit();
+                SimpleDateFormat inputFormat = new SimpleDateFormat("dd-MM-yyyy");
+                Date parsedDate = inputFormat.parse(toggleProjectWorkerDTO.getDate());
 
+                query.setParameter("projectOutDate", parsedDate);
+                query.setParameter("upAt", dateTimeCalc.getTodayDateTime());
+
+                result = query.executeUpdate();
+                session.getTransaction().commit();
+            } else if (toggleProjectWorkerDTO.getStatus() == 1) {
+                String sql = "UPDATE [" + plant + "_PROJECT_WORKERLIST] SET STATUS = :status, PROJECTIN_DATE = :projectInDate, " +
+                        "UPAT = :upAt WHERE PROJECTNO = :projectNo AND EMPID = :empId AND PLANT = :plant";
+
+                session.beginTransaction();
+                Query query = session.createSQLQuery(sql);
+                DateTimeCalc dateTimeCalc = new DateTimeCalc();
+
+                query.setParameter("plant", plant);
+                query.setParameter("projectNo", toggleProjectWorkerDTO.getCurrentProjectNo());
+                query.setParameter("empId", toggleProjectWorkerDTO.getEmpId());
+                query.setParameter("status", toggleProjectWorkerDTO.getStatus());
+
+                SimpleDateFormat inputFormat = new SimpleDateFormat("dd-MM-yyyy");
+                Date parsedDate = inputFormat.parse(toggleProjectWorkerDTO.getDate());
+
+                query.setParameter("projectInDate", parsedDate);
+                query.setParameter("upAt", dateTimeCalc.getTodayDateTime());
+
+                result = query.executeUpdate();
+                session.getTransaction().commit();
+            }
 
         } catch (Exception ex) {
             session.getTransaction().rollback();
+            throw ex;
+        } finally {
+            session.close();
+        }
+
+        return result;
+    }
+
+    @Override
+    public List<AttendanceCalendarResponseDTO> hasAttendance(String plant, String projectNo, CalendarRequestDTO calendarRequestDTO) throws ParseException {
+        Session session = sessionFactory.openSession();
+        List<AttendanceCalendarResponseDTO> result = new ArrayList<>();
+        try {
+
+            for(String date : calendarRequestDTO.getDateList()) {
+                String sql = "  SELECT COUNT(*) AS RESULT FROM " + plant + "_Staffattendance Att " +
+                        "  LEFT JOIN " + plant + "_PROJECT_WORKERLIST WRK ON WRK.EMPID = Att.EMPID " +
+                        "  WHERE WRK.PROJECTNO = :projectNo AND Att.Att_Date = :date AND (WRK.PROJECTIN_DATE <= :date AND ISNULL(WRK.PROJECTOUT_DATE, GETDATE()) >= :date)";
+
+                Query query = session.createSQLQuery(sql);
+                query.setParameter("projectNo", projectNo);
+
+                SimpleDateFormat inputFormat = new SimpleDateFormat("dd-MM-yyyy");
+                Date parsedDate = inputFormat.parse(date);
+                query.setParameter("date", parsedDate);
+
+                Number row = (Number) query.uniqueResult();
+
+                AttendanceCalendarResponseDTO attendanceCalendarResponseDTO = new AttendanceCalendarResponseDTO();
+                attendanceCalendarResponseDTO.setDate(date);
+                attendanceCalendarResponseDTO.setHasAttendance(row.intValue());
+
+                result.add(attendanceCalendarResponseDTO);
+            }
+
+        } catch (Exception ex) {
             throw ex;
         } finally {
             session.close();

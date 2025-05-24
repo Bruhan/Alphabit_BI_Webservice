@@ -10,6 +10,7 @@ import java.math.BigInteger;
 public class ProjectWorkerRequestDTO {
     private String plant;
     private BigInteger empId;
+    private String date;
     private String empNo;
     private String empName;
     private String currentProjectNo;

@@ -6,8 +6,11 @@ import com.facility.management.usecases.dashboard.enums.OWCMachineStatus;
 import com.facility.management.usecases.project.dao.ProjectDao;
 import com.facility.management.usecases.project.dto.ProjectDTO;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 
+import java.nio.file.Files;
 import java.util.List;
 
 @Service
@@ -23,6 +26,17 @@ public class DashboardService {
         EmployeeDetailDTO employeeDetailDTO = null;
         try {
             employeeDetailDTO = dashboardDao.getEmployeeDetails(plant, employeeId);
+            byte[] imageBytes = null;
+            if(employeeDetailDTO.getEmployeeImagePath() != null) {
+                Resource resource = new FileSystemResource(employeeDetailDTO.getEmployeeImagePath());
+                if(resource.exists() & !resource.getFile().isDirectory()) {
+                    imageBytes = Files.readAllBytes(resource.getFile().toPath());
+                } else {
+                    imageBytes = new byte[0];
+                }
+            }
+
+            employeeDetailDTO.setEmployeeImage(imageBytes);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -51,6 +65,56 @@ public class DashboardService {
         }
 
         return totalWastageDTO;
+    }
+
+    public TotalWastageDTO getTotalOrganicWastage(String plant, String projectNo, String fromDate, String toDate) {
+        TotalWastageDTO totalOrganicWastageDTO = null;
+        try {
+            totalOrganicWastageDTO = dashboardDao.getTotalOrganicWastage(plant, projectNo, fromDate, toDate);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        return totalOrganicWastageDTO;
+    }
+
+    public TotalWastageDTO getTotalInorganicWastage(String plant, String projectNo, String fromDate, String toDate) {
+        TotalWastageDTO totalInorganicWastageDTO = null;
+        try {
+            totalInorganicWastageDTO = dashboardDao.getTotalInorganicWastage(plant, projectNo, fromDate, toDate);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        return totalInorganicWastageDTO;
+    }
+
+    public TotalWastageDTO getTotalRejectedWastage(String plant, String projectNo, String fromDate, String toDate) {
+        TotalWastageDTO totalRejectedWastageDTO = null;
+        try {
+            totalRejectedWastageDTO = dashboardDao.getTotalRejectedWastage(plant, projectNo, fromDate, toDate);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        return totalRejectedWastageDTO;
+    }
+
+    public TotalWastageDTO getTotalDebrisWastage(String plant, String projectNo, String fromDate, String toDate) {
+        TotalWastageDTO totalDebrisWastageDTO = null;
+        try {
+            totalDebrisWastageDTO = dashboardDao.getTotalDebrisWastage(plant, projectNo, fromDate, toDate);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        return totalDebrisWastageDTO;
+    }
+
+    public TotalWastageDTO getTotalGardenWastage(String plant, String projectNo, String fromDate, String toDate) {
+        TotalWastageDTO totalGardenWastageDTO = null;
+        try {
+            totalGardenWastageDTO = dashboardDao.getTotalGardenWastage(plant, projectNo, fromDate, toDate);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        return totalGardenWastageDTO;
     }
 
     public TotalWastageDTO getTotalExecutiveWastage(String plant, String employeeId, String fromDate, String toDate) {
@@ -108,4 +172,5 @@ public class DashboardService {
 
         return result;
     }
+
 }

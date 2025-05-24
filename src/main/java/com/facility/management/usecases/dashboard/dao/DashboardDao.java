@@ -20,6 +20,15 @@ public interface DashboardDao {
 
     List<OWCMachineDetailDTO> getOWCMachines(String plant, String projectNo);
 
-
     Integer changeOWCMachineStatus(String plant, String projectNo, ChangeOWCMachineStatus changeOWCMachineStatus);
+
+    TotalWastageDTO getTotalOrganicWastage(String plant, String projectNo, String fromDate, String toDate);
+
+    TotalWastageDTO getTotalInorganicWastage(String plant, String projectNo, String fromDate, String toDate);
+
+    TotalWastageDTO getTotalRejectedWastage(String plant, String projectNo, String fromDate, String toDate);
+
+    TotalWastageDTO getTotalDebrisWastage(String plant, String projectNo, String fromDate, String toDate);
+
+    TotalWastageDTO getTotalGardenWastage(String plant, String projectNo, String fromDate, String toDate);
 }

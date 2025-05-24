@@ -9,6 +9,7 @@ import java.util.List;
 @Setter
 public class WasteMovementDTO {
     private Integer id;
+    private String plant;
     private String date;
     private String vehicleNo;
     private String driverNo;

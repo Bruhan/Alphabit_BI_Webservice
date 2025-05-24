@@ -3,6 +3,7 @@ package com.facility.management.usecases.wastage;
 import com.facility.management.helpers.common.results.ResultDao;
 import com.facility.management.helpers.common.token.ClaimsDao;
 import com.facility.management.helpers.common.token.ClaimsSet;
+import com.facility.management.usecases.attendance.dto.CalendarRequestDTO;
 import com.facility.management.usecases.wastage.dto.*;
 import com.facility.management.usecases.wastage.enums.WastageType;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -145,6 +146,21 @@ public class WastageController {
         return new ResponseEntity<>(resultDao, HttpStatus.OK);
     }
 
+    @PostMapping("/compose-cattle-feet")
+    public ResponseEntity<Object> sendToComposeOrCattleFeet(HttpServletRequest request, @RequestBody ComposeCattleFeedRequestDTO composeCattleFeedRequestDTO) throws Exception {
+        ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
+        String plant = claimsDao.getPlt();
+
+        HashMap<String, Integer> result = wastageService.sendToComposeOrCattleFeet(plant, composeCattleFeedRequestDTO);
+
+        ResultDao resultDao = new ResultDao();
+        resultDao.setResults(result);
+        resultDao.setStatusCode(HttpStatus.OK.value());
+        resultDao.setMessage("SUCCESS");
+
+        return new ResponseEntity<>(resultDao, HttpStatus.OK);
+    }
+
     @PostMapping("/owc-machine")
     public ResponseEntity<Object> sendToOWCMachine(HttpServletRequest request, @RequestBody OWCMachineRequestDTO owcMachineRequestDTO) throws Exception {
         ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
@@ -193,11 +209,11 @@ public class WastageController {
     }
 
     @GetMapping("/biogas-summary/{projectNo}")
-    public ResponseEntity<Object> getBioGasSummary(HttpServletRequest request, @PathVariable("projectNo") String projectNo) throws Exception {
-            ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
-            String plant = claimsDao.getPlt();
+    public ResponseEntity<Object> getBioGasSummary(HttpServletRequest request, @PathVariable("projectNo") String projectNo, @RequestParam(required = false) String date) throws Exception {
+        ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
+        String plant = claimsDao.getPlt();
 //        String plant = "test";
-            List<BioGasDTO> bioGasDTOList = wastageService.getBioGasSummary(plant, projectNo);
+        List<BioGasDTO> bioGasDTOList = wastageService.getBioGasSummary(plant, projectNo, date);
 
         ResultDao resultDao = new ResultDao();
         resultDao.setResults(bioGasDTOList);
@@ -207,12 +223,27 @@ public class WastageController {
         return new ResponseEntity<>(resultDao, HttpStatus.OK);
     }
 
+    @GetMapping("/compose-cattle-feet-summary/{projectNo}")
+    public ResponseEntity<Object> getComposeCattleFeedSummary(HttpServletRequest request, @PathVariable("projectNo") String projectNo, @RequestParam(required = false) String date) throws Exception {
+        ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
+        String plant = claimsDao.getPlt();
+
+        List<ComposeCattleFeedDTO> composeCattleFeedDTOList = wastageService.getComposeCattleFeedSummary(plant, projectNo, date);
+
+        ResultDao resultDao = new ResultDao();
+        resultDao.setResults(composeCattleFeedDTOList);
+        resultDao.setStatusCode(HttpStatus.OK.value());
+        resultDao.setMessage("SUCCESS");
+
+        return new ResponseEntity<>(resultDao, HttpStatus.OK);
+    }
+
     @GetMapping("/owc-summary/{projectNo}")
-    public ResponseEntity<Object> getOWCSummary(HttpServletRequest request, @PathVariable("projectNo") String projectNo) throws Exception {
+    public ResponseEntity<Object> getOWCSummary(HttpServletRequest request, @PathVariable("projectNo") String projectNo, @RequestParam(required = false) String date) throws Exception {
         ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
         String plant = claimsDao.getPlt();
 //        String plant = "test";
-        List<OWCMachineDTO> owcMachineDTOList = wastageService.getOWCSummary(plant, projectNo);
+        List<OWCMachineDTO> owcMachineDTOList = wastageService.getOWCSummary(plant, projectNo, date);
 
         ResultDao resultDao = new ResultDao();
         resultDao.setResults(owcMachineDTOList);
@@ -223,12 +254,12 @@ public class WastageController {
     }
 
     @GetMapping("/receive-owc-outcome-summary/{projectNo}")
-    public ResponseEntity<Object> getReceivedOWCOutcomeSummary(HttpServletRequest request, @PathVariable("projectNo") String projectNo) throws Exception {
+    public ResponseEntity<Object> getReceivedOWCOutcomeSummary(HttpServletRequest request, @PathVariable("projectNo") String projectNo, @RequestParam(required = false) String date) throws Exception {
         ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
         String plant = claimsDao.getPlt();
 //        String plant = "test";
 
-        List<OWCOutcomeDTO> owcOutcomeDTOList = wastageService.getReceivedOWCOutcomeSummary(plant, projectNo);
+        List<OWCOutcomeDTO> owcOutcomeDTOList = wastageService.getReceivedOWCOutcomeSummary(plant, projectNo, date);
 
         ResultDao resultDao = new ResultDao();
         resultDao.setResults(owcOutcomeDTOList);
@@ -239,11 +270,11 @@ public class WastageController {
     }
 
     @GetMapping("/move-owc-outcome-summary/{projectNo}")
-    public ResponseEntity<Object> getMovedOWCOutcomeSummary(HttpServletRequest request, @PathVariable("projectNo") String projectNo) throws Exception {
+    public ResponseEntity<Object> getMovedOWCOutcomeSummary(HttpServletRequest request, @PathVariable("projectNo") String projectNo, @RequestParam(required = false) String date) throws Exception {
         ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
         String plant = claimsDao.getPlt();
 
-        List<MovedOWCOutcomeDTO> owcOutcomeDTOList = wastageService.getMovedOWCOutcomeSummary(plant, projectNo);
+        List<MovedOWCOutcomeDTO> owcOutcomeDTOList = wastageService.getMovedOWCOutcomeSummary(plant, projectNo, date);
 
         ResultDao resultDao = new ResultDao();
         resultDao.setResults(owcOutcomeDTOList);
@@ -255,12 +286,12 @@ public class WastageController {
     }
 
     @GetMapping("/organic-wastage-summary/{projectNo}")
-    public ResponseEntity<Object> getOrganicWastageSummary(HttpServletRequest request, @PathVariable("projectNo") String projectNo) throws Exception {
+    public ResponseEntity<Object> getOrganicWastageSummary(HttpServletRequest request, @PathVariable("projectNo") String projectNo,  @RequestParam(required = false) String date) throws Exception {
         ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
         String plant = claimsDao.getPlt();
 //        String plant = "test";
 
-        List<OrganicWastageSummaryDTO> organicWastageSummaryDTOList = wastageService.getOrganicWastageSummary(plant, projectNo);
+        List<OrganicWastageSummaryDTO> organicWastageSummaryDTOList = wastageService.getOrganicWastageSummary(plant, projectNo, date);
 
         ResultDao resultDao = new ResultDao();
         resultDao.setResults(organicWastageSummaryDTOList);
@@ -270,32 +301,34 @@ public class WastageController {
         return new ResponseEntity<>(resultDao, HttpStatus.OK);
     }
 
-    @GetMapping("/rejected-wastage-summary/{projectNo}")
-    public ResponseEntity<Object> getRejectedWastageSummary(HttpServletRequest request, @PathVariable("projectNo") String projectNo) throws Exception {
+
+    @GetMapping("/inorganic-wastage-summary/{projectNo}")
+    public ResponseEntity<Object> getInorganicWastageSummary(HttpServletRequest request, @PathVariable("projectNo") String projectNo, @RequestParam(required = false) String date) throws Exception {
         ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
         String plant = claimsDao.getPlt();
 //        String plant = "test";
 
-        List<RejectedWastageSummaryDTO> rejectedWastageSummaryDTOList = wastageService.getRejectedWastageSummary(plant, projectNo);
+        List<InorganicWastageSummaryDTO> inorganicWastageSummaryDTOList = wastageService.getInorganicWastageSummary(plant, projectNo, date);
 
         ResultDao resultDao = new ResultDao();
-        resultDao.setResults(rejectedWastageSummaryDTOList);
+        resultDao.setResults(inorganicWastageSummaryDTOList);
         resultDao.setStatusCode(HttpStatus.OK.value());
         resultDao.setMessage("SUCCESS");
 
         return new ResponseEntity<>(resultDao, HttpStatus.OK);
     }
 
-    @GetMapping("/inorganic-wastage-summary/{projectNo}")
-    public ResponseEntity<Object> getInorganicWastageSummary(HttpServletRequest request, @PathVariable("projectNo") String projectNo) throws Exception {
+
+    @GetMapping("/rejected-wastage-summary/{projectNo}")
+    public ResponseEntity<Object> getRejectedWastageSummary(HttpServletRequest request, @PathVariable("projectNo") String projectNo, @RequestParam(required = false) String date) throws Exception {
         ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
         String plant = claimsDao.getPlt();
 //        String plant = "test";
 
-        List<InorganicWastageSummaryDTO> inorganicWastageSummaryDTOList = wastageService.getInorganicWastageSummary(plant, projectNo);
+        List<RejectedWastageSummaryDTO> rejectedWastageSummaryDTOList = wastageService.getRejectedWastageSummary(plant, projectNo, date);
 
         ResultDao resultDao = new ResultDao();
-        resultDao.setResults(inorganicWastageSummaryDTOList);
+        resultDao.setResults(rejectedWastageSummaryDTOList);
         resultDao.setStatusCode(HttpStatus.OK.value());
         resultDao.setMessage("SUCCESS");
 
@@ -367,5 +400,154 @@ public class WastageController {
         return new ResponseEntity<>(resultDao, HttpStatus.OK);
     }
 
+    @PutMapping("/hasWastage/{projectNo}")
+    public ResponseEntity<Object> hasWastage(HttpServletRequest request, @PathVariable("projectNo") String projectNo, @RequestBody CalendarRequestDTO calendarRequestDTO) throws Exception {
+        ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
+        String plant = claimsDao.getPlt();
+
+        List<WastageCalendarResponseDTO> result = wastageService.hasWastage(plant, projectNo, calendarRequestDTO);
+
+        ResultDao resultDao = new ResultDao();
+
+        resultDao.setMessage("SUCCESS");
+        resultDao.setStatusCode(HttpStatus.OK.value());
+        resultDao.setResults(result);
+
+        return new ResponseEntity<>(resultDao, HttpStatus.OK);
+
+    }
+
+    @PutMapping("/hasOrganicWastage/{projectNo}")
+    public ResponseEntity<Object> hasOrganicWastage(HttpServletRequest request, @PathVariable("projectNo") String projectNo, @RequestBody CalendarRequestDTO calendarRequestDTO) throws Exception {
+        ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
+        String plant = claimsDao.getPlt();
+
+        List<WastageCalendarResponseDTO> result = wastageService.hasOrganicWastage(plant, projectNo, calendarRequestDTO);
+
+        ResultDao resultDao = new ResultDao();
+
+        resultDao.setMessage("SUCCESS");
+        resultDao.setStatusCode(HttpStatus.OK.value());
+        resultDao.setResults(result);
+
+        return new ResponseEntity<>(resultDao, HttpStatus.OK);
+
+    }
+
+    @PutMapping("/hasInorganicWastage/{projectNo}")
+    public ResponseEntity<Object> hasInorganicWastage(HttpServletRequest request, @PathVariable("projectNo") String projectNo, @RequestBody CalendarRequestDTO calendarRequestDTO) throws Exception {
+        ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
+        String plant = claimsDao.getPlt();
+
+        List<WastageCalendarResponseDTO> result = wastageService.hasInorganicWastage(plant, projectNo, calendarRequestDTO);
+
+        ResultDao resultDao = new ResultDao();
+
+        resultDao.setMessage("SUCCESS");
+        resultDao.setStatusCode(HttpStatus.OK.value());
+        resultDao.setResults(result);
+
+        return new ResponseEntity<>(resultDao, HttpStatus.OK);
+
+    }
+
+    @PutMapping("/hasRejectedWastage/{projectNo}")
+    public ResponseEntity<Object> hasRejectedWastage(HttpServletRequest request, @PathVariable("projectNo") String projectNo, @RequestBody CalendarRequestDTO calendarRequestDTO) throws Exception {
+        ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
+        String plant = claimsDao.getPlt();
+
+        List<WastageCalendarResponseDTO> result = wastageService.hasRejectedWastage(plant, projectNo, calendarRequestDTO);
+
+        ResultDao resultDao = new ResultDao();
+
+        resultDao.setMessage("SUCCESS");
+        resultDao.setStatusCode(HttpStatus.OK.value());
+        resultDao.setResults(result);
+
+        return new ResponseEntity<>(resultDao, HttpStatus.OK);
+
+    }
+
+    @PutMapping("/hasBiogas/{projectNo}")
+    public ResponseEntity<Object> hasBiogas(HttpServletRequest request, @PathVariable("projectNo") String projectNo, @RequestBody CalendarRequestDTO calendarRequestDTO) throws Exception {
+        ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
+        String plant = claimsDao.getPlt();
+
+        List<WastageCalendarResponseDTO> result = wastageService.hasBiogas(plant, projectNo, calendarRequestDTO);
+
+        ResultDao resultDao = new ResultDao();
+
+        resultDao.setMessage("SUCCESS");
+        resultDao.setStatusCode(HttpStatus.OK.value());
+        resultDao.setResults(result);
+
+        return new ResponseEntity<>(resultDao, HttpStatus.OK);
+
+    }
+
+    @PutMapping("/hasOwcMachineSum/{projectNo}")
+    public ResponseEntity<Object> hasOwcMachineSum(HttpServletRequest request, @PathVariable("projectNo") String projectNo, @RequestBody CalendarRequestDTO calendarRequestDTO) throws Exception {
+        ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
+        String plant = claimsDao.getPlt();
+
+        List<WastageCalendarResponseDTO> result = wastageService.hasOwcMachineSum(plant, projectNo, calendarRequestDTO);
+
+        ResultDao resultDao = new ResultDao();
+
+        resultDao.setMessage("SUCCESS");
+        resultDao.setStatusCode(HttpStatus.OK.value());
+        resultDao.setResults(result);
+
+        return new ResponseEntity<>(resultDao, HttpStatus.OK);
+
+    }
+
+    @PutMapping("/hasComposeCattleFeet/{projectNo}")
+    public ResponseEntity<Object> hasComposeCattleFeet(HttpServletRequest request, @PathVariable("projectNo") String projectNo, @RequestBody CalendarRequestDTO calendarRequestDTO) throws Exception {
+        ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
+        String plant = claimsDao.getPlt();
+
+        List<WastageCalendarResponseDTO> result = wastageService.hasComposeCattleFeet(plant, projectNo, calendarRequestDTO);
+
+        ResultDao resultDao = new ResultDao();
+
+        resultDao.setMessage("SUCCESS");
+        resultDao.setStatusCode(HttpStatus.OK.value());
+        resultDao.setResults(result);
+
+        return new ResponseEntity<>(resultDao, HttpStatus.OK);
+    }
+
+    @PutMapping("/hasReceivedOwcOutcome/{projectNo}")
+    public ResponseEntity<Object> hasReceivedOwcOutcome(HttpServletRequest request, @PathVariable("projectNo") String projectNo, @RequestBody CalendarRequestDTO calendarRequestDTO) throws Exception {
+        ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
+        String plant = claimsDao.getPlt();
+
+        List<WastageCalendarResponseDTO> result = wastageService.hasReceivedOwcOutcome(plant, projectNo, calendarRequestDTO);
+
+        ResultDao resultDao = new ResultDao();
+
+        resultDao.setMessage("SUCCESS");
+        resultDao.setStatusCode(HttpStatus.OK.value());
+        resultDao.setResults(result);
+
+        return new ResponseEntity<>(resultDao, HttpStatus.OK);
+    }
+
+    @PutMapping("/hasMovedOwcOutcome/{projectNo}")
+    public ResponseEntity<Object> hasMovedOwcOutcome(HttpServletRequest request, @PathVariable("projectNo") String projectNo, @RequestBody CalendarRequestDTO calendarRequestDTO) throws Exception {
+        ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
+        String plant = claimsDao.getPlt();
+
+        List<WastageCalendarResponseDTO> result = wastageService.hasMovedOwcOutcome(plant, projectNo, calendarRequestDTO);
+
+        ResultDao resultDao = new ResultDao();
+
+        resultDao.setMessage("SUCCESS");
+        resultDao.setStatusCode(HttpStatus.OK.value());
+        resultDao.setResults(result);
+
+        return new ResponseEntity<>(resultDao, HttpStatus.OK);
+    }
 
 }

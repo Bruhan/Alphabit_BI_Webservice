@@ -8,6 +8,7 @@ import com.facility.management.persistence.models.ProjectWorkAllocationHDR;
 import com.facility.management.usecases.employee_master.dto.WorkerDTO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -66,10 +67,10 @@ public class EmployeeController {
         ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
         String plant = claimsDao.getPlt();
 
-        List<EmployeeMaster> employeeMasterList = employeeMasterService.findByEmpCode(empNo, plant);
+        EmployeeMaster employeeMaster = employeeMasterService.findByEmpCode(empNo, plant);
         ResultDao resultDao = new ResultDao();
 
-        if(employeeMasterList.isEmpty()) {
+        if(employeeMaster == null) {
             resultDao.setMessage("FAILED");
             resultDao.setStatusCode(HttpStatus.NOT_FOUND.value());
             resultDao.setResults(null);
@@ -77,28 +78,40 @@ public class EmployeeController {
         } else {
             resultDao.setMessage("SUCCESS");
             resultDao.setStatusCode(HttpStatus.OK.value());
-            resultDao.setResults(employeeMasterList.get(0));
+            resultDao.setResults(employeeMaster);
             return new ResponseEntity<>(resultDao, HttpStatus.OK);
         }
     }
 
-    @GetMapping(value = "/getEmpImage", produces = MediaType.IMAGE_JPEG_VALUE)
+    @GetMapping(value = "/getEmpImage")
     public ResponseEntity<Object> getWorkImage(HttpServletRequest request, @RequestParam String empNo) throws Exception {
          ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
         String plant = claimsDao.getPlt();
 
-         List<EmployeeMaster> employeeMasterList = employeeMasterService.findByEmpCode(empNo, plant);
+         EmployeeMaster employeeMaster = employeeMasterService.findByEmpCode(empNo, plant);
 
-         if(employeeMasterList.isEmpty()) {
+         if(employeeMaster == null) {
              return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-         } else if(employeeMasterList.get(0).getCATLOGPATH() == null || Objects.equals(employeeMasterList.get(0).getCATLOGPATH(), "")) {
+         } else if(employeeMaster.getCATLOGPATH() == null || Objects.equals(employeeMaster.getCATLOGPATH(), "")) {
              return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
          } else {
-             final ByteArrayResource inputStream = new ByteArrayResource(Files.readAllBytes(
-                     Paths.get(employeeMasterList.get(0).getCATLOGPATH())));
-             return ResponseEntity.status(HttpStatus.OK)
-                     .contentLength(inputStream.contentLength())
-                     .body(inputStream);
+
+             byte[] imageBytes = null;
+             if(employeeMaster.getCATLOGPATH() != null) {
+                 Resource resource = new FileSystemResource(employeeMaster.getCATLOGPATH());
+                 if(resource.exists() & !resource.getFile().isDirectory()) {
+                     imageBytes = Files.readAllBytes(resource.getFile().toPath());
+                 } else {
+                     imageBytes = new byte[0];
+                 }
+             }
+
+             ResultDao resultDao = new ResultDao();
+             resultDao.setMessage("SUCCESS");
+             resultDao.setStatusCode(HttpStatus.OK.value());
+             resultDao.setResults(imageBytes);
+
+             return new ResponseEntity<>(resultDao, HttpStatus.OK);
          }
     }
 }

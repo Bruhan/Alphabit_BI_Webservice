@@ -1,5 +1,6 @@
 package com.facility.management.usecases.dashboard.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -8,4 +9,9 @@ import lombok.Setter;
 public class EmployeeDetailDTO {
     private String employeeId;
     private String employeeName;
+
+    @JsonIgnore
+    private String employeeImagePath;
+
+    private byte[] employeeImage;
 }

@@ -10,6 +10,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Date;
 import java.util.Locale;
+import java.util.TimeZone;
 
 
 public class DateTimeCalc {
@@ -182,7 +183,17 @@ public class DateTimeCalc {
     }
 
     public String getTodayDMYDate() {
+
         String pattern = "yyyy-MM-dd";
+        SimpleDateFormat sdf = new SimpleDateFormat(pattern);
+
+        sdf.setTimeZone(TimeZone.getTimeZone("Asia/Dubai"));
+
+        return sdf.format(new Date());
+    }
+
+    public String getTodayDateNormalFormat() {
+        String pattern = "dd-MM-yyyy";
         return new SimpleDateFormat(pattern).format(new Date());
     }
 

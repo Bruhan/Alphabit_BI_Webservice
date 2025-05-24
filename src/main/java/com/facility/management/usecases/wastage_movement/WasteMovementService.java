@@ -4,6 +4,9 @@ import com.facility.management.helpers.common.calc.DateTimeCalc;
 import com.facility.management.persistence.models.*;
 import com.facility.management.usecases.activity_log.ActivityLogModel;
 import com.facility.management.usecases.activity_log.ActivityLogService;
+import com.facility.management.usecases.attendance.dto.CalendarRequestDTO;
+import com.facility.management.usecases.product_request.dto.PRCalendarResponseDTO;
+import com.facility.management.usecases.table_control.TableControlService;
 import com.facility.management.usecases.wastage.dao.WastageDao;
 import com.facility.management.usecases.wastage_movement.dao.WasteMovementDao;
 import com.facility.management.usecases.wastage_movement.dto.*;
@@ -27,6 +30,9 @@ public class WasteMovementService {
     @Autowired
     ActivityLogService activityLogService;
 
+    @Autowired
+    TableControlService tableControlService;
+
     public HashMap<String, Integer> saveWasteMovement(String plant, WasteMovementRequestDTO wasteMovementRequestDTO) {
         HashMap<String, Integer> result = new HashMap<>();
         DateTimeCalc dateTimeCalc = new DateTimeCalc();
@@ -44,7 +50,7 @@ public class WasteMovementService {
                     Integer bioGasHdrUpdated = wastageDao.updateBioGasHdr(plant, bioGasHDR);
                     result.put("bioGasHdrUpdated - ", bioGasHdrUpdated);
 
-                } else if(wasteMovementDETDTO.getWastageType() == WastageType.OWCOUTCOME || wasteMovementDETDTO.getWastageType() == WastageType.COMPOSE_OR_CATTLE_FEEDS) {
+                } else if(wasteMovementDETDTO.getWastageType() == WastageType.OWCOUTCOME) {
                     OWCOutcomeHDR owcOutcomeHDR = wastageDao.getOWCOutcomeHDR(plant, wasteMovementRequestDTO.getProjectNo());
                     owcOutcomeHDR.setProcessedQty(owcOutcomeHDR.getProcessedQty() + wasteMovementDETDTO.getQty());
                     owcOutcomeHDR.setPendingQty(owcOutcomeHDR.getPendingQty() - wasteMovementDETDTO.getQty());
@@ -55,6 +61,16 @@ public class WasteMovementService {
                     Integer owcOutcomeUpdated = wastageDao.updateOWCOutcomeHdr(plant, owcOutcomeHDR);
                     result.put("owcOutcomeUpdated", owcOutcomeUpdated);
 
+                } else if(wasteMovementDETDTO.getWastageType() == WastageType.COMPOSE_OR_CATTLE_FEEDS) {
+                  ComposeCattleFeedHDR composeCattleFeedHDR = wastageDao.getComposeCattleFeedHDR(plant, wasteMovementRequestDTO.getProjectNo());
+                  composeCattleFeedHDR.setProcessedQty(composeCattleFeedHDR.getProcessedQty() + wasteMovementDETDTO.getQty());
+                  composeCattleFeedHDR.setPendingQty(composeCattleFeedHDR.getPendingQty() - wasteMovementDETDTO.getQty());
+                    activityLogService.setActivityLogDetails(activityLogModel.setActivityLogModel(
+                            plant, "UPDATE_COMPOSE_CATTLE_FEEDS_HDR", "", "", "", 0.0,
+                            wasteMovementRequestDTO.getEmpNo(), dateTimeCalc.getTodayDMYDate(), dateTimeCalc.getTodayDMYDate(), wasteMovementRequestDTO.getEmpNo(),
+                            "CREATED", ""));
+                    Integer composeOrCattleFeedUpdated = wastageDao.updateComposeCattleFeedHdr(plant, composeCattleFeedHDR);
+                    result.put("composeOrCattleFeedUpdated", composeOrCattleFeedUpdated);
                 } else if(wasteMovementDETDTO.getWastageType() == WastageType.INORGANIC_WASTE) {
                     InorganicWasteHDR inorganicWasteHDR = wastageDao.getInorganicWasteHDR(plant, wasteMovementRequestDTO.getProjectNo());
                     inorganicWasteHDR.setProcessedQty(inorganicWasteHDR.getProcessedQty() + wasteMovementDETDTO.getQty());
@@ -102,7 +118,7 @@ public class WasteMovementService {
                 }
 
                 if(wasteMovementDETDTO.getWastageType() != WastageType.MIXED_WASTE && wasteMovementDETDTO.getWastageType() != WastageType.INORGANIC_WASTE && wasteMovementDETDTO.getWastageType() != WastageType.OWCOUTCOME ) {
-                    ProjectInventory existingProjectInventory = wastageDao.getProjectInventory(plant, wasteMovementRequestDTO.getProjectNo(), wasteMovementDETDTO.getWastageType() == WastageType.COMPOSE_OR_CATTLE_FEEDS ? WastageType.OWCOUTCOME.name() : wasteMovementDETDTO.getWastageType().name());
+                    ProjectInventory existingProjectInventory = wastageDao.getProjectInventory(plant, wasteMovementRequestDTO.getProjectNo(), wasteMovementDETDTO.getWastageType().name());
 
                     existingProjectInventory.setProcessedQty(existingProjectInventory.getProcessedQty() + wasteMovementDETDTO.getQty());
                     existingProjectInventory.setPendingQty(existingProjectInventory.getPendingQty() - wasteMovementDETDTO.getQty());
@@ -159,10 +175,10 @@ public class WasteMovementService {
         return result;
     }
 
-    public List<WasteMovementDTO> getWastageMovementSummary(String plant, String projectNo) {
+    public List<WasteMovementDTO> getWastageMovementSummary(String plant, String projectNo, String date) {
         List<WasteMovementDTO> wasteMovementDTOList = null;
         try {
-            wasteMovementDTOList = wasteMovementDao.getWastageMovementSummary(plant, projectNo);
+            wasteMovementDTOList = wasteMovementDao.getWastageMovementSummary(plant, projectNo, date);
 
             for(WasteMovementDTO wasteMovementDTO: wasteMovementDTOList) {
                 List<WasteMovementDETOutDTO> wasteMovementDETList = wasteMovementDao.getWasteMovementDET(plant, projectNo, wasteMovementDTO.getId());
@@ -262,7 +278,6 @@ public class WasteMovementService {
                                     wasteMovementDao.saveWasteMovementOWCOutcomeDET(plant, updateWasteMovementRequestDTO.getProjectNo(), id, updateWasteMovementDETDTO.getId(), updateWasteMovementOWCOutcomeDTO);
                                 }
                             }
-
                         }
                     }
                 }
@@ -273,5 +288,48 @@ public class WasteMovementService {
             throw new RuntimeException(ex);
         }
         return result;
+    }
+
+    public List<TransportCalendarResponseDTO> hasTransport(String plant, String projectNo, CalendarRequestDTO calendarRequestDTO) {
+        List<TransportCalendarResponseDTO> result = null;
+        try {
+            result = wasteMovementDao.hasTransport(plant, projectNo, calendarRequestDTO);
+        } catch (Exception e) {
+            throw new RuntimeException(e.getMessage());
+        }
+
+        return result;
+    }
+
+    public String generateDCNumber(String plant) {
+        String dcNumber = null;
+
+        try {
+            String status = tableControlService.checkTableControlPk(plant,"DELIVERY_CHALLAN");
+            if (status.equals("1")) {
+                String prefix = "DC"+new DateTimeCalc().getCodeDateYear();
+                tableControlService.setTableControlNew(plant,"DELIVERY_CHALLAN",prefix,"");
+            }
+
+            TableControl tableControl = tableControlService.getTableControlPk(plant,"DELIVERY_CHALLAN");
+            int doNoSeqLength = tableControl.getMinSeq().length();
+            int nextSeqLength = tableControl.getNxtSeq().length();
+            int lenseq = doNoSeqLength - nextSeqLength;
+            int nextSeqInt = Integer.valueOf(tableControl.getNxtSeq()) + 1;
+            String nextSeq = String.valueOf(nextSeqInt);
+            String doNoSeq = String.valueOf(nextSeqInt);
+            if(lenseq > 0){
+                for (int i = 0; i < lenseq; i++) {
+                    doNoSeq = "0"+doNoSeq;
+                }
+            }
+            dcNumber = "DC"+new DateTimeCalc().getCodeDateYear()+doNoSeq;
+            tableControl.setNxtSeq(nextSeq);
+            tableControlService.updateTableControlDetails(tableControl);
+        } catch (Exception e) {
+            throw new RuntimeException(e.getMessage());
+        }
+
+        return dcNumber;
     }
 }

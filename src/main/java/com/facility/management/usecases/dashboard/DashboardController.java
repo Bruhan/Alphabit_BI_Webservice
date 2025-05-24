@@ -70,6 +70,96 @@ public class DashboardController {
         return new ResponseEntity<>(resultDao, HttpStatus.OK);
     }
 
+    @GetMapping("/total-organic-wastage/{projectNo}")
+    public ResponseEntity<Object> getTotalOrganicWastage(HttpServletRequest request,
+                                                         @PathVariable("projectNo") String projectNo,
+                                                         @RequestParam String fromDate,
+                                                         @RequestParam String toDate) throws Exception {
+        ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
+        String plant = claimsDao.getPlt();
+
+        TotalWastageDTO totalWastageDTO = dashboardService.getTotalOrganicWastage(plant, projectNo, fromDate, toDate);
+
+        ResultDao resultDao = new ResultDao();
+        resultDao.setResults(totalWastageDTO);
+        resultDao.setStatusCode(HttpStatus.OK.value());
+        resultDao.setMessage("SUCCESS");
+
+        return new ResponseEntity<>(resultDao, HttpStatus.OK);
+    }
+
+    @GetMapping("/total-inorganic-wastage/{projectNo}")
+    public ResponseEntity<Object> getTotalInorganicWastage(HttpServletRequest request,
+                                                         @PathVariable("projectNo") String projectNo,
+                                                         @RequestParam String fromDate,
+                                                         @RequestParam String toDate) throws Exception {
+        ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
+        String plant = claimsDao.getPlt();
+
+        TotalWastageDTO totalWastageDTO = dashboardService.getTotalInorganicWastage(plant, projectNo, fromDate, toDate);
+
+        ResultDao resultDao = new ResultDao();
+        resultDao.setResults(totalWastageDTO);
+        resultDao.setStatusCode(HttpStatus.OK.value());
+        resultDao.setMessage("SUCCESS");
+
+        return new ResponseEntity<>(resultDao, HttpStatus.OK);
+    }
+
+    @GetMapping("/total-rejected-wastage/{projectNo}")
+    public ResponseEntity<Object> getTotalRejectedWastage(HttpServletRequest request,
+                                                         @PathVariable("projectNo") String projectNo,
+                                                         @RequestParam String fromDate,
+                                                         @RequestParam String toDate) throws Exception {
+        ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
+        String plant = claimsDao.getPlt();
+
+        TotalWastageDTO totalWastageDTO = dashboardService.getTotalRejectedWastage(plant, projectNo, fromDate, toDate);
+
+        ResultDao resultDao = new ResultDao();
+        resultDao.setResults(totalWastageDTO);
+        resultDao.setStatusCode(HttpStatus.OK.value());
+        resultDao.setMessage("SUCCESS");
+
+        return new ResponseEntity<>(resultDao, HttpStatus.OK);
+    }
+
+    @GetMapping("/total-debris-wastage/{projectNo}")
+    public ResponseEntity<Object> getTotalDebrisWastage(HttpServletRequest request,
+                                                         @PathVariable("projectNo") String projectNo,
+                                                         @RequestParam String fromDate,
+                                                         @RequestParam String toDate) throws Exception {
+        ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
+        String plant = claimsDao.getPlt();
+
+        TotalWastageDTO totalWastageDTO = dashboardService.getTotalDebrisWastage(plant, projectNo, fromDate, toDate);
+
+        ResultDao resultDao = new ResultDao();
+        resultDao.setResults(totalWastageDTO);
+        resultDao.setStatusCode(HttpStatus.OK.value());
+        resultDao.setMessage("SUCCESS");
+
+        return new ResponseEntity<>(resultDao, HttpStatus.OK);
+    }
+
+    @GetMapping("/total-garden-wastage/{projectNo}")
+    public ResponseEntity<Object> getTotalGardenWastage(HttpServletRequest request,
+                                                         @PathVariable("projectNo") String projectNo,
+                                                         @RequestParam String fromDate,
+                                                         @RequestParam String toDate) throws Exception {
+        ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
+        String plant = claimsDao.getPlt();
+
+        TotalWastageDTO totalWastageDTO = dashboardService.getTotalGardenWastage(plant, projectNo, fromDate, toDate);
+
+        ResultDao resultDao = new ResultDao();
+        resultDao.setResults(totalWastageDTO);
+        resultDao.setStatusCode(HttpStatus.OK.value());
+        resultDao.setMessage("SUCCESS");
+
+        return new ResponseEntity<>(resultDao, HttpStatus.OK);
+    }
+
     @GetMapping("/total-executive-wastage/{employeeId}")
     public ResponseEntity<Object> getTotalExecutiveWastage(HttpServletRequest request,
                                                            @PathVariable("employeeId") String employeeId,
