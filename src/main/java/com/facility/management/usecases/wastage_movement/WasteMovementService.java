@@ -332,4 +332,72 @@ public class WasteMovementService {
 
         return dcNumber;
     }
+
+    public String generateGatePassNumber(String plant) {
+        String GPNumber = null;
+
+        try {
+            String status = tableControlService.checkTableControlPk(plant,"GATE_PASS");
+            if (status.equals("1")) {
+                String prefix = "GP"+new DateTimeCalc().getCodeDateYear();
+                tableControlService.setTableControlNew(plant,"GATE_PASS",prefix,"");
+            }
+
+            TableControl tableControl = tableControlService.getTableControlPk(plant,"GATE_PASS");
+            int doNoSeqLength = tableControl.getMinSeq().length();
+            int nextSeqLength = tableControl.getNxtSeq().length();
+            int lenseq = doNoSeqLength - nextSeqLength;
+            int nextSeqInt = Integer.valueOf(tableControl.getNxtSeq()) + 1;
+            String nextSeq = String.valueOf(nextSeqInt);
+            String doNoSeq = String.valueOf(nextSeqInt);
+            if(lenseq > 0){
+                for (int i = 0; i < lenseq; i++) {
+                    doNoSeq = "0"+doNoSeq;
+                }
+            }
+            GPNumber = "GP"+new DateTimeCalc().getCodeDateYear()+doNoSeq;
+            tableControl.setNxtSeq(nextSeq);
+            tableControlService.updateTableControlDetails(tableControl);
+        } catch (Exception e) {
+            throw new RuntimeException(e.getMessage());
+        }
+
+        return GPNumber;
+    }
+
+    public Integer updateGatePassSign(String plant, Integer id, String gatePassSignpath){
+        Integer result = 0;
+        try {
+            result = wasteMovementDao.updateGatePassSign(plant, id, gatePassSignpath);
+            if(result > 0) {
+                ActivityLogModel activityLogModel = new ActivityLogModel();
+                DateTimeCalc dateTimeCalc = new DateTimeCalc();
+                activityLogService.setActivityLogDetails(activityLogModel.setActivityLogModel(
+                        plant, "UPDATE_GATE_PASS_SIGN", "", "", "", 0.0,
+                        "", dateTimeCalc.getTodayDMYDate(), dateTimeCalc.getTodayDMYDate(), "",
+                        "CREATED", ""));
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e.getMessage());
+        }
+        return result;
+    }
+
+    public Integer updateDCSign(String plant, Integer id, String customerId,String dcSignPath){
+        Integer result = 0;
+        try {
+            result = wasteMovementDao.updateDCSign(plant, id, customerId, dcSignPath);
+            if(result > 0) {
+                ActivityLogModel activityLogModel = new ActivityLogModel();
+                DateTimeCalc dateTimeCalc = new DateTimeCalc();
+                activityLogService.setActivityLogDetails(activityLogModel.setActivityLogModel(
+                        plant, "UPDATE_DC_SIGN", "", "", "", 0.0,
+                        "", dateTimeCalc.getTodayDMYDate(), dateTimeCalc.getTodayDMYDate(), "",
+                        "CREATED", ""));
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e.getMessage());
+        }
+        return result;
+    }
 }

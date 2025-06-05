@@ -47,7 +47,7 @@ public class WasteMovementDaoImpl implements WasteMovementDao{
             query.setParameter("driverNo", wasteMovementRequestDTO.getDriverNo());
             query.setParameter("finalDestination", wasteMovementRequestDTO.getDestination());
             query.setParameter("remarks", wasteMovementRequestDTO.getRemarks());
-            query.setParameter("dcNo", wasteMovementRequestDTO.getDeliveryChallanNo());
+            query.setParameter("dcNo", wasteMovementRequestDTO.getGatepassNo());
             query.setParameter("vehicleType", wasteMovementRequestDTO.getVehicleType());
             query.setParameter("crAt", dateTimeCalc.getTodayDateTime());
             query.setParameter("crBy", null);
@@ -56,8 +56,8 @@ public class WasteMovementDaoImpl implements WasteMovementDao{
             session.getTransaction().commit();
 
             for(WasteMovementDETDTO wasteMovementDETDTO: wasteMovementRequestDTO.getWasteMovementDETList()) {
-                detsql = "INSERT INTO " + plant + "_WASTE_MOVEMENT_DET (PLANT, PROJECTNO, CUSTOMERID, CUSTOMERNAME, HDRID, DESTINATION, DESTINATION_TYPE, WASTAGE_TYPE, QTY, UOM, CRAT, CRBY) " +
-                        "VALUES (:plant, :projectNo, :customerId, :customerName, :hdrId, :destination, :destinationType, :wastageType, :qty, :uom, :crAt, :crBy); SELECT SCOPE_IDENTITY();";
+                detsql = "INSERT INTO " + plant + "_WASTE_MOVEMENT_DET (PLANT, PROJECTNO, CUSTOMERID, CUSTOMERNAME, HDRID, DCNO ,DESTINATION, DESTINATION_TYPE, WASTAGE_TYPE, QTY, UOM, CRAT, CRBY) " +
+                        "VALUES (:plant, :projectNo, :customerId, :customerName, :hdrId, :dcNo, :destination, :destinationType, :wastageType, :qty, :uom, :crAt, :crBy); SELECT SCOPE_IDENTITY();";
                 session.beginTransaction();
                 Query query1 = session.createSQLQuery(detsql);
                 query1.setParameter("plant", plant);
@@ -65,6 +65,7 @@ public class WasteMovementDaoImpl implements WasteMovementDao{
                 query1.setParameter("customerId", wasteMovementDETDTO.getCustomerId());
                 query1.setParameter("customerName", wasteMovementDETDTO.getCustomerName());
                 query1.setParameter("hdrId", hdrId);
+                query1.setParameter("dcNo", wasteMovementDETDTO.getDeliveryChallanNo());
                 query1.setParameter("destination", wasteMovementDETDTO.getDestination());
                 query1.setParameter("destinationType", wasteMovementDETDTO.getDestinationType());
                 query1.setParameter("wastageType", wasteMovementDETDTO.getWastageType().toString());
@@ -282,7 +283,7 @@ public class WasteMovementDaoImpl implements WasteMovementDao{
         Session session = sessionFactory.openSession();
         List<WasteMovementDTO> wasteMovementDTOList = null;
         try {
-            String sql = "SELECT DATE, VEHICLEID, DRIVERNO, FINAL_DESTINATION, REMARKS, DC_NO, VEHICLE_TYPE, ID, PLANT FROM " + plant + "_WASTE_MOVEMENT_HDR" +
+            String sql = "SELECT DATE, VEHICLEID, DRIVERNO, FINAL_DESTINATION, REMARKS, DC_NO, VEHICLE_TYPE, ID, PLANT,IS_GP_SIGNED,INSPECTING_PERSON_SIGN FROM " + plant + "_WASTE_MOVEMENT_HDR" +
                     "  WHERE PROJECTNO = :projectNo AND PLANT = :plant AND (DATE = :date OR :date IS NULL)";
             Query query = session.createSQLQuery(sql);
 
@@ -308,10 +309,12 @@ public class WasteMovementDaoImpl implements WasteMovementDao{
                 wasteMovementDTO.setDriverNo((String) row[2]);
                 wasteMovementDTO.setFinalDestination((String) row[3]);
                 wasteMovementDTO.setRemarks((String) row[4]);
-                wasteMovementDTO.setDeliveryChallanNo((String) row[5]);
+                wasteMovementDTO.setGatepassNo((String) row[5]);
                 wasteMovementDTO.setVehicleType((String) row[6]);
                 wasteMovementDTO.setId((Integer) row[7]);
                 wasteMovementDTO.setPlant((String) row[8]);
+                wasteMovementDTO.setIsGpSigned(row[9] != null ? ((Short) row[9]) : 0);
+                wasteMovementDTO.setInspectingPersonSign((String) row[10]);
 
                 wasteMovementDTOList.add(wasteMovementDTO);
             }
@@ -346,7 +349,7 @@ public class WasteMovementDaoImpl implements WasteMovementDao{
                 wasteMovementDTO.setDriverNo((String) row[2]);
                 wasteMovementDTO.setFinalDestination((String) row[3]);
                 wasteMovementDTO.setRemarks((String) row[4]);
-                wasteMovementDTO.setDeliveryChallanNo((String) row[5]);
+                wasteMovementDTO.setGatepassNo((String) row[5]);
                 wasteMovementDTO.setVehicleType((String) row[6]);
                 wasteMovementDTO.setId((Integer) row[7]);
             }
@@ -365,7 +368,7 @@ public class WasteMovementDaoImpl implements WasteMovementDao{
         Session session = sessionFactory.openSession();
         List<WasteMovementDETOutDTO> wasteMovementDETList = null;
         try {
-            String sql = "SELECT CUSTOMERID, CUSTOMERNAME, DESTINATION, DESTINATION_TYPE, WASTAGE_TYPE, QTY, UOM, ID FROM " + plant + "_WASTE_MOVEMENT_DET" +
+            String sql = "SELECT CUSTOMERID, CUSTOMERNAME, DESTINATION, DESTINATION_TYPE, WASTAGE_TYPE, QTY, UOM, ID, DCNO, IS_DC_SIGNED,AUTHORISED_SIGN FROM " + plant + "_WASTE_MOVEMENT_DET" +
                     "  WHERE PROJECTNO = :projectNo AND HDRID = :hdrId AND PLANT = :plant";
             Query query = session.createSQLQuery(sql);
 
@@ -386,6 +389,9 @@ public class WasteMovementDaoImpl implements WasteMovementDao{
                 wasteMovementDET.setQty((double) row[5]);
                 wasteMovementDET.setUom((String) row[6]);
                 wasteMovementDET.setId((Integer) row[7]);
+                wasteMovementDET.setDeliveryChallanNo((String) row[8]);
+                wasteMovementDET.setIsDcSigned(row[9] != null ? ((Short) row[9]) : 0);
+                wasteMovementDET.setAuthorizedSign((String) row[10]);
 
                 wasteMovementDETList.add(wasteMovementDET);
             }
@@ -480,7 +486,7 @@ public class WasteMovementDaoImpl implements WasteMovementDao{
         String detOWCsql = null;
         try {
            hdrsql = "UPDATE " + plant + "_WASTE_MOVEMENT_HDR SET DATE = :date, VEHICLEID = :vehicleId, DRIVERNO = :driverNo, FINAL_DESTINATION = :finalDestination, " +
-                    "REMARKS = :remarks, DC_NO = :dcNo, VEHICLE_TYPE = :vehicleType, UPAT = :upAt, UPBY = :upBy OUTPUT INSERTED.ID WHERE ID = :hdrId AND PLANT = :plant";
+                    "REMARKS = :remarks, DC_NO = :dcNo,IS_GP_SIGNED = :isGpSigned,INSPECTING_PERSON_SIGN = :inspectingPersonSign, VEHICLE_TYPE = :vehicleType, UPAT = :upAt, UPBY = :upBy OUTPUT INSERTED.ID WHERE ID = :hdrId AND PLANT = :plant";
             session.beginTransaction();
             DateTimeCalc dateTimeCalc = new DateTimeCalc();
             Query query = session.createSQLQuery(hdrsql);
@@ -490,8 +496,10 @@ public class WasteMovementDaoImpl implements WasteMovementDao{
             query.setParameter("driverNo", updateWasteMovementRequestDTO.getDriverNo());
             query.setParameter("finalDestination", updateWasteMovementRequestDTO.getDestination());
             query.setParameter("remarks", updateWasteMovementRequestDTO.getRemarks());
-            query.setParameter("dcNo", updateWasteMovementRequestDTO.getDeliveryChallanNo());
+            query.setParameter("dcNo", updateWasteMovementRequestDTO.getGatepassNo());
             query.setParameter("vehicleType", updateWasteMovementRequestDTO.getVehicleType());
+            query.setParameter("isGpSigned", updateWasteMovementRequestDTO.getIsGpSigned());
+            query.setParameter("inspectingPersonSign", updateWasteMovementRequestDTO.getInspectingPersonSign());
             query.setParameter("upAt", dateTimeCalc.getTodayDateTime());
             query.setParameter("upBy", null);
             query.setParameter("hdrId", updateWasteMovementRequestDTO.getId());
@@ -502,13 +510,16 @@ public class WasteMovementDaoImpl implements WasteMovementDao{
             for(WasteMovementDETDTO wasteMovementDETDTO: updateWasteMovementRequestDTO.getWasteMovementDETList()) {
 
                 detsql = "UPDATE " + plant + "_WASTE_MOVEMENT_DET SET CUSTOMERID = :customerId, CUSTOMERNAME = :customerName, DESTINATION = :destination, DESTINATION_TYPE = :destinationType, " +
-                        "WASTAGE_TYPE = :wastageType, QTY = :qty, UOM = :uom, UPAT = :upAt, UPBY = :upBy OUTPUT INSERTED.ID WHERE HDRID = :hdrId AND ID = :id AND PLANT = :plant";
+                        "WASTAGE_TYPE = :wastageType,DCNO = :dcNo,IS_DC_SIGNED = :isDcSigned, AUTHORISED_SIGN = :authSign, QTY = :qty, UOM = :uom, UPAT = :upAt, UPBY = :upBy OUTPUT INSERTED.ID WHERE HDRID = :hdrId AND ID = :id AND PLANT = :plant";
                 session.beginTransaction();
                 Query query1 = session.createSQLQuery(detsql);
                 query1.setParameter("plant", plant);
                 query1.setParameter("customerId", wasteMovementDETDTO.getCustomerId());
                 query1.setParameter("customerName", wasteMovementDETDTO.getCustomerName());
                 query1.setParameter("hdrId", hdrId);
+                query1.setParameter("dcNo", wasteMovementDETDTO.getDeliveryChallanNo());
+                query1.setParameter("isDcSigned", wasteMovementDETDTO.getIsDcSigned());
+                query1.setParameter("authSign", wasteMovementDETDTO.getAuthorizedSign());
                 query1.setParameter("id", wasteMovementDETDTO.getId());
                 query1.setParameter("destination", wasteMovementDETDTO.getDestination());
                 query1.setParameter("destinationType", wasteMovementDETDTO.getDestinationType());
@@ -610,4 +621,65 @@ public class WasteMovementDaoImpl implements WasteMovementDao{
 
         return result;
     }
+
+
+    @Override
+    public Integer updateGatePassSign(String plant, Integer id, String gatePassSignpath) {
+        Session session = sessionFactory.openSession();
+        String hdrsql = null;
+        try {
+            hdrsql = "UPDATE " + plant + "_WASTE_MOVEMENT_HDR SET IS_GP_SIGNED = :isGpSigned,INSPECTING_PERSON_SIGN = :inspectingPersonSign, " +
+                    "UPAT = :upAt, UPBY = :upBy OUTPUT INSERTED.ID WHERE ID = :hdrId AND PLANT = :plant";
+            session.beginTransaction();
+            DateTimeCalc dateTimeCalc = new DateTimeCalc();
+            Query query = session.createSQLQuery(hdrsql);
+            query.setParameter("plant", plant);
+            query.setParameter("isGpSigned", 1);
+            query.setParameter("inspectingPersonSign", gatePassSignpath);
+            query.setParameter("upAt", dateTimeCalc.getTodayDateTime());
+            query.setParameter("upBy", null);
+            query.setParameter("hdrId", id);
+
+            Integer hdrId = ((Number) query.uniqueResult()).intValue();
+            session.getTransaction().commit();
+
+            } catch(Exception ex) {
+                session.getTransaction().rollback();
+                throw new RuntimeException(ex);
+            } finally {
+                session.close();
+            }
+            return 1;
+        }
+
+        @Override
+        public Integer updateDCSign(String plant, Integer id, String customerId,String dcSignPath) {
+            Session session = sessionFactory.openSession();
+            String detsql = null;
+            try {
+                    DateTimeCalc dateTimeCalc = new DateTimeCalc();
+                    detsql = "UPDATE " + plant + "_WASTE_MOVEMENT_DET SET IS_DC_SIGNED = :isDcSigned, AUTHORISED_SIGN = :authSign, " +
+                            "UPAT = :upAt, UPBY = :upBy WHERE HDRID = :hdrId AND CUSTOMERID = :customerId AND PLANT = :plant";
+                    session.beginTransaction();
+                    Query query1 = session.createSQLQuery(detsql);
+                    query1.setParameter("plant", plant);
+                    query1.setParameter("customerId", customerId);
+                    query1.setParameter("hdrId", id);
+                    query1.setParameter("isDcSigned", 1);
+                    query1.setParameter("authSign", dcSignPath);
+
+                    query1.setParameter("upAt", dateTimeCalc.getTodayDateTime());
+                    query1.setParameter("upBy", null);
+
+                    Integer detId = ((Number) query1.uniqueResult()).intValue();
+                    session.getTransaction().commit();
+
+                } catch(Exception ex) {
+                    session.getTransaction().rollback();
+                    throw new RuntimeException(ex);
+                } finally {
+                    session.close();
+                }
+                return 1;
+            }
 }

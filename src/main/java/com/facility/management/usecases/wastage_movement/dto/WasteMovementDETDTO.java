@@ -19,6 +19,9 @@ public class WasteMovementDETDTO {
     private WastageType wastageType;
     private double qty;
     private String uom;
+    private String deliveryChallanNo;
+    private Short isDcSigned;
+    private String authorizedSign;
     private List<WasteMovementInorganicProductDTO> wasteMovementInorganicProductList;
     private List<WasteMovementOWCOutcomeDTO> wasteMovementOWCOutcomeList;
 }

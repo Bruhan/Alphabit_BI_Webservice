@@ -34,4 +34,6 @@ public interface WasteMovementDao {
     Integer updateWasteMovement(String plant, Integer id, UpdateWasteMovementRequestDTO updateWasteMovementRequestDTO);
 
     List<TransportCalendarResponseDTO> hasTransport(String plant, String projectNo, CalendarRequestDTO calendarRequestDTO) throws ParseException;
+    public Integer updateGatePassSign(String plant, Integer id, String gatePassSignpath);
+    public Integer updateDCSign(String plant, Integer id, String customerId,String dcSignPath);
 }
