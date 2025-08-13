@@ -54,7 +54,7 @@ public class AttendanceController {
                                                           @RequestParam(required = false) String endDate,
                                                           @RequestParam(required = false) String empNo) throws Exception {
 
-        ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
+         ClaimsDao claimsDao = claimsSet.getClaimsDetailsAfterSet(request.getHeader("Authorization"));
 
         String plant = claimsDao.getPlt();
 //        String plant = "test";

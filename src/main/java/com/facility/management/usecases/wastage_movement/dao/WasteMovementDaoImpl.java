@@ -30,6 +30,7 @@ public class WasteMovementDaoImpl implements WasteMovementDao{
     @Override
     public Integer saveWasteMovement(String plant, WasteMovementRequestDTO wasteMovementRequestDTO) {
         Session session = sessionFactory.openSession();
+        Integer hdrId = 0;
         String hdrsql = null;
         String detsql = null;
         String detInorganicsql = null;
@@ -47,12 +48,12 @@ public class WasteMovementDaoImpl implements WasteMovementDao{
             query.setParameter("driverNo", wasteMovementRequestDTO.getDriverNo());
             query.setParameter("finalDestination", wasteMovementRequestDTO.getDestination());
             query.setParameter("remarks", wasteMovementRequestDTO.getRemarks());
-            query.setParameter("dcNo", wasteMovementRequestDTO.getGatepassNo());
+            query.setParameter("dcNo", wasteMovementRequestDTO.getGatePassNo());
             query.setParameter("vehicleType", wasteMovementRequestDTO.getVehicleType());
             query.setParameter("crAt", dateTimeCalc.getTodayDateTime());
             query.setParameter("crBy", null);
 
-            Integer hdrId = ((Number) query.uniqueResult()).intValue();
+            hdrId = ((Number) query.uniqueResult()).intValue();
             session.getTransaction().commit();
 
             for(WasteMovementDETDTO wasteMovementDETDTO: wasteMovementRequestDTO.getWasteMovementDETList()) {
@@ -126,7 +127,7 @@ public class WasteMovementDaoImpl implements WasteMovementDao{
         } finally {
             session.close();
         }
-        return 1;
+        return hdrId;
     }
 
     @Override
@@ -309,11 +310,11 @@ public class WasteMovementDaoImpl implements WasteMovementDao{
                 wasteMovementDTO.setDriverNo((String) row[2]);
                 wasteMovementDTO.setFinalDestination((String) row[3]);
                 wasteMovementDTO.setRemarks((String) row[4]);
-                wasteMovementDTO.setGatepassNo((String) row[5]);
+                wasteMovementDTO.setGatePassNo((String) row[5]);
                 wasteMovementDTO.setVehicleType((String) row[6]);
                 wasteMovementDTO.setId((Integer) row[7]);
                 wasteMovementDTO.setPlant((String) row[8]);
-                wasteMovementDTO.setIsGpSigned(row[9] != null ? ((Short) row[9]) : 0);
+                wasteMovementDTO.setIsGpSigned(row[9] != null ? ((Byte) row[9]) : 0);
                 wasteMovementDTO.setInspectingPersonSign((String) row[10]);
 
                 wasteMovementDTOList.add(wasteMovementDTO);
@@ -349,7 +350,7 @@ public class WasteMovementDaoImpl implements WasteMovementDao{
                 wasteMovementDTO.setDriverNo((String) row[2]);
                 wasteMovementDTO.setFinalDestination((String) row[3]);
                 wasteMovementDTO.setRemarks((String) row[4]);
-                wasteMovementDTO.setGatepassNo((String) row[5]);
+                wasteMovementDTO.setGatePassNo((String) row[5]);
                 wasteMovementDTO.setVehicleType((String) row[6]);
                 wasteMovementDTO.setId((Integer) row[7]);
             }
@@ -390,7 +391,7 @@ public class WasteMovementDaoImpl implements WasteMovementDao{
                 wasteMovementDET.setUom((String) row[6]);
                 wasteMovementDET.setId((Integer) row[7]);
                 wasteMovementDET.setDeliveryChallanNo((String) row[8]);
-                wasteMovementDET.setIsDcSigned(row[9] != null ? ((Short) row[9]) : 0);
+                wasteMovementDET.setIsDcSigned(row[9] != null ? ((Byte) row[9]) : 0);
                 wasteMovementDET.setAuthorizedSign((String) row[10]);
 
                 wasteMovementDETList.add(wasteMovementDET);
@@ -496,7 +497,7 @@ public class WasteMovementDaoImpl implements WasteMovementDao{
             query.setParameter("driverNo", updateWasteMovementRequestDTO.getDriverNo());
             query.setParameter("finalDestination", updateWasteMovementRequestDTO.getDestination());
             query.setParameter("remarks", updateWasteMovementRequestDTO.getRemarks());
-            query.setParameter("dcNo", updateWasteMovementRequestDTO.getGatepassNo());
+            query.setParameter("dcNo", updateWasteMovementRequestDTO.getGatePassNo());
             query.setParameter("vehicleType", updateWasteMovementRequestDTO.getVehicleType());
             query.setParameter("isGpSigned", updateWasteMovementRequestDTO.getIsGpSigned());
             query.setParameter("inspectingPersonSign", updateWasteMovementRequestDTO.getInspectingPersonSign());
@@ -671,7 +672,7 @@ public class WasteMovementDaoImpl implements WasteMovementDao{
                     query1.setParameter("upAt", dateTimeCalc.getTodayDateTime());
                     query1.setParameter("upBy", null);
 
-                    Integer detId = ((Number) query1.uniqueResult()).intValue();
+                    Integer detId = query1.executeUpdate();
                     session.getTransaction().commit();
 
                 } catch(Exception ex) {

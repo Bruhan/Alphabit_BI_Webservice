@@ -545,7 +545,6 @@ public class AttendanceDaoImpl implements AttendanceDao{
                 query.setParameter("date", "");
             }
 
-
             List<Object[]> rows = query.list();
 
             staffAttendanceDTOList = new ArrayList<>();
@@ -586,7 +585,7 @@ public class AttendanceDaoImpl implements AttendanceDao{
                         " (SELECT CONCAT(FNAME, ' ', LNAME) FROM " + plant + "_EMP_MST WHERE ID = EMP.ID) AS empName, (SELECT EMPNO " +
                         " FROM "+ plant +"_EMP_MST WHERE ID = EMP.ID) AS empNo, MAX(CASE WHEN ATT.ShiftStatus = 'EOUT' THEN ATT.Location_Lat END) AS EOUT_Location_Lat, " +
                         " MAX(CASE WHEN ATT.ShiftStatus = 'EOUT' THEN ATT.Location_Long END) AS EOUT_Location_Long, MIN(CASE WHEN ATT.ShiftStatus = 'MIN' THEN ATT.Location_Lat END) AS MIN_Location_Lat, " +
-                        " MIN(CASE WHEN ATT.ShiftStatus = 'MIN' THEN ATT.Location_Long END) AS MIN_Location_Long " +
+                        " MIN(CASE WHEN ATT.ShiftStatus = 'MIN' THEN ATT.Location_Long END) AS MIN_Location_Long, (SELECT CATLOGPATH FROM " + plant + "_EMP_MST WHERE ID = EMP.ID) AS CatalogPath" +
                         " FROM " + plant +"_Staffattendance ATT LEFT JOIN " + plant +"_EMP_MST EMP ON ATT.EMPID = EMP.ID" +
                         " LEFT JOIN " + plant + "_PROJECT_WORKERLIST WRK ON ATT.EMPID = WRK.EMPID" +
                         " WHERE (ATT.Att_Date LIKE '%%' OR ATT.Att_Date BETWEEN '' AND '' OR ATT.EMPID LIKE '%%') AND WRK.PROJECTNO = :projectNo AND WRK.STATUS = :status" +
@@ -610,6 +609,7 @@ public class AttendanceDaoImpl implements AttendanceDao{
                     dto.setEOutLocationLong(row[8] != null && !((String) row[8]).isEmpty() ?(String) row[8] : "0.0");
                     dto.setMinLocationLat(row[9] != null && !((String) row[9]).isEmpty() ? (String) row[9] : "0.0");
                     dto.setMinLocationLong(row[10] != null && !((String) row[10]).isEmpty() ? (String) row[10] : "0.0");
+                    dto.setCatalogPath((String) row[11]);
 
                     staffAttendanceDetailDTOList.add(dto);
                 }
@@ -622,7 +622,7 @@ public class AttendanceDaoImpl implements AttendanceDao{
                         " (SELECT CONCAT(FNAME, ' ', LNAME) FROM " + plant + "_EMP_MST WHERE ID = EMP.ID) AS empName, (SELECT EMPNO " +
                         " FROM "+ plant +"_EMP_MST WHERE ID = EMP.ID) AS empNo, MAX(CASE WHEN ATT.ShiftStatus = 'EOUT' THEN ATT.Location_Lat END) AS EOUT_Location_Lat, " +
                         " MAX(CASE WHEN ATT.ShiftStatus = 'EOUT' THEN ATT.Location_Long END) AS EOUT_Location_Long, MIN(CASE WHEN ATT.ShiftStatus = 'MIN' THEN ATT.Location_Lat END) AS MIN_Location_Lat, " +
-                        " MIN(CASE WHEN ATT.ShiftStatus = 'MIN' THEN ATT.Location_Long END) AS MIN_Location_Long " +
+                        " MIN(CASE WHEN ATT.ShiftStatus = 'MIN' THEN ATT.Location_Long END) AS MIN_Location_Long, (SELECT CATLOGPATH FROM " + plant + "_EMP_MST WHERE ID = EMP.ID) AS CatalogPath" +
                         " FROM " + plant +"_Staffattendance ATT LEFT JOIN " + plant +"_EMP_MST EMP ON ATT.EMPID = EMP.ID" +
                         " LEFT JOIN " + plant + "_PROJECT_WORKERLIST WRK ON ATT.EMPID = WRK.EMPID" +
                         " WHERE (ATT.Att_Date = :date OR ATT.Att_Date BETWEEN :startDate AND :endDate OR ATT.EMPID = :empId) AND WRK.PROJECTNO = :projectNo AND (WRK.PROJECTIN_DATE <= :date AND ISNULL(WRK.PROJECTOUT_DATE, GETDATE()) >= :date)" +
@@ -676,6 +676,7 @@ public class AttendanceDaoImpl implements AttendanceDao{
                     dto.setEOutLocationLong(row[8] != null && !((String) row[8]).isEmpty() ?(String) row[8] : "0.0");
                     dto.setMinLocationLat(row[9] != null && !((String) row[9]).isEmpty() ? (String) row[9] : "0.0");
                     dto.setMinLocationLong(row[10] != null && !((String) row[10]).isEmpty() ? (String) row[10] : "0.0");
+                    dto.setCatalogPath((String) row[11]);
 
                     staffAttendanceDetailDTOList.add(dto);
                 }

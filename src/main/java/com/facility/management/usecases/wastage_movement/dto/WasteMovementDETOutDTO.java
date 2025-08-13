@@ -18,7 +18,7 @@ public class WasteMovementDETOutDTO {
     private double qty;
     private String uom;
     private String deliveryChallanNo;
-    private Short isDcSigned;
+    private Byte isDcSigned;
     private String authorizedSign;
     private List<WasteMovementInorganicProductOutDTO> wasteMovementInorganicProductList;
     private List<WasteMovementOWCOutcomeOutDTO> wasteMovementOWCOutcomeList;

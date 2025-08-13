@@ -13,6 +13,8 @@ import com.facility.management.usecases.attendance.enums.ShiftStatus;
 import com.facility.management.usecases.employee_master.EmployeeMasterService;
 import com.facility.management.usecases.employee_master.dto.WorkerDTO;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -303,9 +305,38 @@ public class AttendanceService {
 
         if(empNo.isEmpty()) {
             staffAttendanceDetailDTOList = attendanceDao.getStaffAttendanceByCriteria(plant, projectNo, date, startDate, endDate, null);
+
+            for(StaffAttendanceDetailDTO staffAttendanceDetailDTO: staffAttendanceDetailDTOList) {
+                byte[] imageBytes = null;
+                if(staffAttendanceDetailDTO.getCatalogPath() != null) {
+                    Resource resource = new FileSystemResource(staffAttendanceDetailDTO.getCatalogPath());
+                    if(resource.exists() & !resource.getFile().isDirectory()) {
+                        imageBytes = Files.readAllBytes(resource.getFile().toPath());
+                    } else {
+                        imageBytes = new byte[0];
+                    }
+                }
+
+                staffAttendanceDetailDTO.setImage(imageBytes);
+            }
+
         } else {
             WorkerDTO workerDTO = employeeMasterService.getWorkerByEmpNo(plant, empNo);
             staffAttendanceDetailDTOList = attendanceDao.getStaffAttendanceByCriteria(plant, projectNo, date, startDate, endDate, workerDTO.getId());
+
+            for(StaffAttendanceDetailDTO staffAttendanceDetailDTO: staffAttendanceDetailDTOList) {
+                byte[] imageBytes = null;
+                if(staffAttendanceDetailDTO.getCatalogPath() != null) {
+                    Resource resource = new FileSystemResource(staffAttendanceDetailDTO.getCatalogPath());
+                    if(resource.exists() & !resource.getFile().isDirectory()) {
+                        imageBytes = Files.readAllBytes(resource.getFile().toPath());
+                    } else {
+                        imageBytes = new byte[0];
+                    }
+                }
+
+                staffAttendanceDetailDTO.setImage(imageBytes);
+            }
         }
 
 

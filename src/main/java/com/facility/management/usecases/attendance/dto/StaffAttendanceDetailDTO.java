@@ -22,4 +22,6 @@ public class StaffAttendanceDetailDTO {
     private String eOutLocationLong;
     private String minLocationLat;
     private String minLocationLong;
+    private String catalogPath;
+    private byte[] image;
 }

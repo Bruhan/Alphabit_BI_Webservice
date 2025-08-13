@@ -14,7 +14,7 @@ public class  WasteMovementRequestDTO {
     private String driverNo;
     private String destination;
     private String remarks;
-    private String gatepassNo;
+    private String gatePassNo;
     private String vehicleType;
     private List<WasteMovementDETDTO> wasteMovementDETList;
 }

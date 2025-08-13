@@ -16,7 +16,7 @@ public class UpdateWasteMovementRequestDTO {
     private String driverNo;
     private String destination;
     private String remarks;
-    private String gatepassNo;
+    private String gatePassNo;
     private Short isGpSigned;
     private String inspectingPersonSign;
     private String vehicleType;

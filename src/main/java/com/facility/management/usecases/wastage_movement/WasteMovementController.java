@@ -6,10 +6,7 @@ import com.facility.management.helpers.common.token.ClaimsDao;
 import com.facility.management.helpers.common.token.ClaimsSet;
 import com.facility.management.usecases.attendance.dto.CalendarRequestDTO;
 import com.facility.management.usecases.product_request.dto.PRCalendarResponseDTO;
-import com.facility.management.usecases.wastage_movement.dto.TransportCalendarResponseDTO;
-import com.facility.management.usecases.wastage_movement.dto.UpdateWasteMovementRequestDTO;
-import com.facility.management.usecases.wastage_movement.dto.WasteMovementDTO;
-import com.facility.management.usecases.wastage_movement.dto.WasteMovementRequestDTO;
+import com.facility.management.usecases.wastage_movement.dto.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
@@ -20,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletRequest;
+import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -43,7 +41,7 @@ public class WasteMovementController {
         String plant = claimsDao.getPlt();
 //        String plant = "test";
 
-        HashMap<String, Integer> result = wasteMovementService.saveWasteMovement(plant, wasteMovementRequestDTO);
+        WasteMovementSaveResponseDTO result = wasteMovementService.saveWasteMovement(plant, wasteMovementRequestDTO);
 
         ResultDao resultDao = new ResultDao();
         resultDao.setResults(result);
@@ -145,6 +143,11 @@ public class WasteMovementController {
 
             String UPLOAD_DIR = "C:\\ATTACHMENTS\\WASTAGE MOVEMENT\\" + plant + "\\GATEPASS SIGN\\";
 
+            File directory = new File(UPLOAD_DIR);
+            if (!directory.exists()) {
+                directory.mkdirs();
+            }
+
             String fileName = UUID.randomUUID().toString() + "-" + file.getOriginalFilename();
             String filePath = UPLOAD_DIR + fileName;
             String filePaths = UPLOAD_DIR + file.getOriginalFilename();
@@ -179,6 +182,11 @@ public class WasteMovementController {
             String plant = claimsDao.getPlt();
 
             String UPLOAD_DIR = "C:\\ATTACHMENTS\\WASTAGE MOVEMENT\\" + plant + "\\DC SIGN\\";
+
+            File directory = new File(UPLOAD_DIR);
+            if (!directory.exists()) {
+                directory.mkdirs();
+            }
 
             String fileName = UUID.randomUUID().toString() + "-" + file.getOriginalFilename();
             String filePath = UPLOAD_DIR + fileName;

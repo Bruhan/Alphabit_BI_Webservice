@@ -15,8 +15,8 @@ public class WasteMovementDTO {
     private String driverNo;
     private String finalDestination;
     private String remarks;
-    private String gatepassNo;
-    private Short isGpSigned;
+    private String gatePassNo;
+    private Byte isGpSigned;
     private String inspectingPersonSign;
     private String vehicleType;
     private List<WasteMovementDETOutDTO> wasteMovementDETList;
