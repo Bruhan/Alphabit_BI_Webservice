@@ -1,0 +1,129 @@
+package com.owner.process.usecases.recv_det;
+
+import com.owner.process.persistence.models.ItemQty;
+import com.owner.process.persistence.models.ItemQtyPrice;
+import com.owner.process.persistence.models.PurchaseSummaryWithTax;
+import com.owner.process.persistence.models.RecvDet;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+
+@Repository
+public interface ReceiptDetRepository extends JpaRepository<RecvDet, Long> {
+    @Override
+    List<RecvDet> findAllById(Iterable<Long> longs);
+
+    @Query(value="SELECT ITEM AS item,SUM(RECQTY) AS qty FROM " +
+            "##plant##RECVDET WHERE CONVERT(DATETIME, RECVDATE, 104) between CONVERT(DATETIME, :pk0, 104) " +
+            "and  CONVERT(DATETIME, :pk1, 104) GROUP BY ITEM",nativeQuery = true)
+    List<ItemQty> findByItemQty(String pk0, String pk1);
+
+    @Query(value="SELECT ITEM AS item,SUM(RECQTY) AS qty,SUM(RECQTY*UNITCOST) AS unitPrice FROM " +
+            "##plant##RECVDET WHERE CONVERT(DATETIME, RECVDATE, 104) between CONVERT(DATETIME, :pk0, 104) " +
+            "and  CONVERT(DATETIME, :pk1, 104) and ISNULL(TRAN_TYPE,'') != 'KITTING' and " +
+            "ISNULL(TRAN_TYPE,'') != 'DE-KITTING' and ISNULL(CNAME,'') != '' " +
+            "GROUP BY ITEM",nativeQuery = true)
+    List<ItemQtyPrice> findByItemQtyCost(String pk0, String pk1);
+
+    @Query(value="SELECT ITEM AS item,SUM(RECQTY) AS qty FROM " +
+            "##plant##RECVDET WHERE CONVERT(DATETIME, RECVDATE, 104) < CONVERT(DATETIME, :pk0, 104) " +
+            "GROUP BY ITEM",nativeQuery = true)
+    List<ItemQty> findByItemQtyToDate(String pk0);
+
+    @Query(value="SELECT ITEM AS item,SUM(RECQTY) AS qty FROM " +
+            "##plant##RECVDET WHERE CONVERT(DATETIME, RECVDATE, 104) > CONVERT(DATETIME, :pk0, 104) " +
+            "GROUP BY ITEM",nativeQuery = true)
+    List<ItemQty> findByItemQtyFromDate(String pk0);
+
+    @Query(value="SELECT ITEM AS item,SUM(RECQTY) AS qty,SUM(RECQTY*UNITCOST) AS unitPrice FROM " +
+            "##plant##RECVDET WHERE CONVERT(DATETIME, RECVDATE, 104) between  CONVERT(DATETIME, :pk0, 104) " +
+            "and  CONVERT(DATETIME, :pk1, 104)  AND CNAME LIKE %:pk2% GROUP BY ITEM",nativeQuery = true)
+    List<ItemQtyPrice> findByItemQtyBySupliId(String pk0, String pk1, String pk2);
+
+    @Query(value="SELECT ISNULL(SUM(B.TOTAL_COST),0) AS TOTAL_PURCHASE_COST FROM ( SELECT A.NAME AS SUPPLIERNAME,A.ITEM,A.ITEMDESC,SUM(A.QTY) AS QTY,SUM(A.TOTAL_COST) AS " +
+            "COST,SUM(A.TAX) AS TAX_AMOUNT, (SUM(A.TOTAL_COST)+SUM(A.TAX)) AS TOTAL_COST FROM (SELECT R.ITEM,R.ITEMDESC,SUM(R.RECQTY) AS QTY " +
+            ",SUM(ISNULL(R.RECQTY,0)*ISNULL(R.UNITCOST,0)) AS TOTAL_COST,R.CNAME AS NAME,((SUM(" +
+            "ISNULL(R.RECQTY,0)*ISNULL(R.UNITCOST,0))/100)*(CASE WHEN ISNULL(PONO,'') = '' THEN (CASE WHEN " +
+            "(SELECT COUNT(PLANT) FROM ##plant##FINBILLHDR AS B WHERE B.GRNO = R.GRNO) > 0 THEN" +
+            "(CASE WHEN (SELECT ISNULL(T.ISZERO,1) FROM FINCOUNTRYTAXTYPE AS T WHERE T.ID IN (SELECT TOP 1 ISNULL(B.TAXID,0)  FROM " +
+            "##plant##FINBILLHDR AS B WHERE B.GRNO = R.GRNO)) > 0 THEN 0 ELSE (SELECT TOP 1 ISNULL(B.INBOUND_GST,0) FROM " +
+            "##plant##FINBILLHDR AS B WHERE B.GRNO = R.GRNO) END) ELSE 0 END) ELSE (CASE WHEN" +
+            "(SELECT ISNULL(P.TAXID,0) FROM ##plant##POHDR AS P WHERE P.PONO=R.PONO) > 0 THEN" +
+            "(CASE WHEN (SELECT ISNULL(T.ISZERO,1) FROM FINCOUNTRYTAXTYPE AS T WHERE T.ID IN (SELECT ISNULL(P.TAXID,0) " +
+            "FROM ##plant##POHDR AS P WHERE P.PONO=R.PONO)) > 0 THEN 0 ELSE (SELECT TOP 1 ISNULL(P.INBOUND_GST,0) FROM " +
+            "##plant##POHDR AS P WHERE P.PONO=R.PONO) END) ELSE 0 END) END)) AS TAX FROM ##plant##RECVDET AS R " +
+            "WHERE CONVERT(DATETIME,R.RECVDATE, 104) between CONVERT(DATETIME, :pk0, 104) and  CONVERT(DATETIME, :pk1, 104) " +
+            "GROUP BY R.ITEM,R.ITEMDESC,R.PONO,R.GRNO,R.CNAME) AS A  WHERE ISNULL(A.NAME,'') != '' " +
+            "GROUP BY A.ITEM,A.ITEMDESC,A.NAME) AS B",nativeQuery = true)
+    String getTotalPurchaseCostWithTax(String pk0, String pk1);
+
+    @Query(value="SELECT ISNULL(SUM(B.TOTAL_COST),0) AS TOTAL_PURCHASE_COST FROM ( SELECT A.NAME AS SUPPLIERNAME,A.ITEM,A.ITEMDESC,SUM(A.QTY) AS QTY,SUM(A.TOTAL_COST) AS " +
+            "COST,SUM(A.TAX) AS TAX_AMOUNT, (SUM(A.TOTAL_COST)+SUM(A.TAX)) AS TOTAL_COST FROM (SELECT R.ITEM,R.ITEMDESC,SUM(R.RECQTY) AS QTY " +
+            ",SUM(ISNULL(R.RECQTY,0)*ISNULL(R.UNITCOST,0)) AS TOTAL_COST,R.CNAME AS NAME,((SUM(" +
+            "ISNULL(R.RECQTY,0)*ISNULL(R.UNITCOST,0))/100)*(CASE WHEN ISNULL(PONO,'') = '' THEN (CASE WHEN " +
+            "(SELECT COUNT(PLANT) FROM ##plant##FINBILLHDR AS B WHERE B.GRNO = R.GRNO) > 0 THEN" +
+            "(CASE WHEN (SELECT ISNULL(T.ISZERO,1) FROM FINCOUNTRYTAXTYPE AS T WHERE T.ID IN (SELECT TOP 1 ISNULL(B.TAXID,0)  FROM " +
+            "##plant##FINBILLHDR AS B WHERE B.GRNO = R.GRNO)) > 0 THEN 0 ELSE (SELECT TOP 1 ISNULL(B.INBOUND_GST,0) FROM " +
+            "##plant##FINBILLHDR AS B WHERE B.GRNO = R.GRNO) END) ELSE 0 END) ELSE (CASE WHEN" +
+            "(SELECT ISNULL(P.TAXID,0) FROM ##plant##POHDR AS P WHERE P.PONO=R.PONO) > 0 THEN" +
+            "(CASE WHEN (SELECT ISNULL(T.ISZERO,1) FROM FINCOUNTRYTAXTYPE AS T WHERE T.ID IN (SELECT ISNULL(P.TAXID,0) " +
+            "FROM ##plant##POHDR AS P WHERE P.PONO=R.PONO)) > 0 THEN 0 ELSE (SELECT TOP 1 ISNULL(P.INBOUND_GST,0) FROM " +
+            "##plant##POHDR AS P WHERE P.PONO=R.PONO) END) ELSE 0 END) END)) AS TAX FROM ##plant##RECVDET AS R " +
+            "WHERE CONVERT(DATETIME,R.RECVDATE, 104) between CONVERT(DATETIME, :pk0, 104) and  CONVERT(DATETIME, :pk1, 104) " +
+            "GROUP BY R.ITEM,R.ITEMDESC,R.PONO,R.GRNO,R.CNAME) AS A  WHERE ISNULL(A.NAME,'') != '' AND ISNULL(A.NAME,'') = :pk2 " +
+            "GROUP BY A.ITEM,A.ITEMDESC,A.NAME) AS B",nativeQuery = true)
+    String getTotalPurCostOfSupplierWithTax(String pk0, String pk1,String pk2);
+
+    @Query(value="SELECT A.NAME AS SUPPLIERNAME,A.ITEM,A.ITEMDESC,SUM(A.QTY) AS QTY,SUM(A.TOTAL_COST) AS " +
+            "COST,SUM(A.TAX) AS TAX_AMOUNT, (SUM(A.TOTAL_COST)+SUM(A.TAX)) AS TOTAL_COST FROM (SELECT R.ITEM,R.ITEMDESC,SUM(R.RECQTY) AS QTY " +
+            ",SUM(ISNULL(R.RECQTY,0)*ISNULL(R.UNITCOST,0)) AS TOTAL_COST,R.CNAME AS NAME,((SUM(" +
+            "ISNULL(R.RECQTY,0)*ISNULL(R.UNITCOST,0))/100)*(CASE WHEN ISNULL(PONO,'') = '' THEN (CASE WHEN " +
+            "(SELECT COUNT(PLANT) FROM ##plant##FINBILLHDR AS B WHERE B.GRNO = R.GRNO) > 0 THEN" +
+            "(CASE WHEN (SELECT ISNULL(T.ISZERO,1) FROM FINCOUNTRYTAXTYPE AS T WHERE T.ID IN (SELECT TOP 1 ISNULL(B.TAXID,0)  FROM " +
+            "##plant##FINBILLHDR AS B WHERE B.GRNO = R.GRNO)) > 0 THEN 0 ELSE (SELECT TOP 1 ISNULL(B.INBOUND_GST,0) FROM " +
+            "##plant##FINBILLHDR AS B WHERE B.GRNO = R.GRNO) END) ELSE 0 END) ELSE (CASE WHEN" +
+            "(SELECT ISNULL(P.TAXID,0) FROM ##plant##POHDR AS P WHERE P.PONO=R.PONO) > 0 THEN" +
+            "(CASE WHEN (SELECT ISNULL(T.ISZERO,1) FROM FINCOUNTRYTAXTYPE AS T WHERE T.ID IN (SELECT ISNULL(P.TAXID,0) " +
+            "FROM ##plant##POHDR AS P WHERE P.PONO=R.PONO)) > 0 THEN 0 ELSE (SELECT TOP 1 ISNULL(P.INBOUND_GST,0) FROM " +
+            "##plant##POHDR AS P WHERE P.PONO=R.PONO) END) ELSE 0 END) END)) AS TAX FROM ##plant##RECVDET AS R  " +
+            "WHERE CONVERT(DATETIME,R.RECVDATE, 104) between CONVERT(DATETIME, :pk0, 104) and  CONVERT(DATETIME, :pk1, 104) " +
+            "GROUP BY R.ITEM,R.ITEMDESC,R.PONO,R.GRNO,R.CNAME) AS A  WHERE ISNULL(A.NAME,'') != '' AND ISNULL(A.NAME,'') = :pk2 " +
+            "GROUP BY A.ITEM,A.ITEMDESC,A.NAME",nativeQuery = true)
+    List<PurchaseSummaryWithTax> getPurCostOfSupplierWithTax(String pk0, String pk1,String pk2);
+
+    @Query(value="SELECT ISNULL(SUM(B.COST),0) AS TOTAL FROM ( SELECT A.NAME AS SUPPLIERNAME,A.ITEM,A.ITEMDESC,SUM(A.QTY) AS QTY,SUM(A.TOTAL_COST) AS " +
+            "COST,SUM(A.TAX) AS TAX_AMOUNT, (SUM(A.TOTAL_COST)+SUM(A.TAX)) AS TOTAL_COST FROM (SELECT R.ITEM,R.ITEMDESC,SUM(R.RECQTY) AS QTY " +
+            ",SUM(ISNULL(R.RECQTY,0)*ISNULL(R.UNITCOST,0)) AS TOTAL_COST,R.CNAME AS NAME,((SUM(" +
+            "ISNULL(R.RECQTY,0)*ISNULL(R.UNITCOST,0))/100)*(CASE WHEN ISNULL(PONO,'') = '' THEN (CASE WHEN " +
+            "(SELECT COUNT(PLANT) FROM ##plant##FINBILLHDR AS B WHERE B.GRNO = R.GRNO) > 0 THEN" +
+            "(CASE WHEN (SELECT ISNULL(T.ISZERO,1) FROM FINCOUNTRYTAXTYPE AS T WHERE T.ID IN (SELECT TOP 1 ISNULL(B.TAXID,0)  FROM " +
+            "##plant##FINBILLHDR AS B WHERE B.GRNO = R.GRNO)) > 0 THEN 0 ELSE (SELECT TOP 1 ISNULL(B.INBOUND_GST,0) FROM " +
+            "##plant##FINBILLHDR AS B WHERE B.GRNO = R.GRNO) END) ELSE 0 END) ELSE (CASE WHEN" +
+            "(SELECT ISNULL(P.TAXID,0) FROM ##plant##POHDR AS P WHERE P.PONO=R.PONO) > 0 THEN" +
+            "(CASE WHEN (SELECT ISNULL(T.ISZERO,1) FROM FINCOUNTRYTAXTYPE AS T WHERE T.ID IN (SELECT ISNULL(P.TAXID,0) " +
+            "FROM ##plant##POHDR AS P WHERE P.PONO=R.PONO)) > 0 THEN 0 ELSE (SELECT TOP 1 ISNULL(P.INBOUND_GST,0) FROM " +
+            "##plant##POHDR AS P WHERE P.PONO=R.PONO) END) ELSE 0 END) END)) AS TAX FROM ##plant##RECVDET AS R " +
+            "WHERE CONVERT(DATETIME,R.RECVDATE, 104) between CONVERT(DATETIME, :pk0, 104) and  CONVERT(DATETIME, :pk1, 104) " +
+            "GROUP BY R.ITEM,R.ITEMDESC,R.PONO,R.GRNO,R.CNAME) AS A  WHERE ISNULL(A.NAME,'') != '' AND ISNULL(A.NAME,'') = :pk2 " +
+            "GROUP BY A.ITEM,A.ITEMDESC,A.NAME) AS B",nativeQuery = true)
+    String getTotalSubOfSupplierWithTax(String pk0, String pk1,String pk2);
+
+    @Query(value="SELECT ISNULL(SUM(B.TAX_AMOUNT),0) AS TOTAL FROM ( SELECT A.NAME AS SUPPLIERNAME,A.ITEM,A.ITEMDESC,SUM(A.QTY) AS QTY,SUM(A.TOTAL_COST) AS " +
+            "COST,SUM(A.TAX) AS TAX_AMOUNT, (SUM(A.TOTAL_COST)+SUM(A.TAX)) AS TOTAL_COST FROM (SELECT R.ITEM,R.ITEMDESC,SUM(R.RECQTY) AS QTY " +
+            ",SUM(ISNULL(R.RECQTY,0)*ISNULL(R.UNITCOST,0)) AS TOTAL_COST,R.CNAME AS NAME,((SUM(" +
+            "ISNULL(R.RECQTY,0)*ISNULL(R.UNITCOST,0))/100)*(CASE WHEN ISNULL(PONO,'') = '' THEN (CASE WHEN " +
+            "(SELECT COUNT(PLANT) FROM ##plant##FINBILLHDR AS B WHERE B.GRNO = R.GRNO) > 0 THEN" +
+            "(CASE WHEN (SELECT ISNULL(T.ISZERO,1) FROM FINCOUNTRYTAXTYPE AS T WHERE T.ID IN (SELECT TOP 1 ISNULL(B.TAXID,0)  FROM " +
+            "##plant##FINBILLHDR AS B WHERE B.GRNO = R.GRNO)) > 0 THEN 0 ELSE (SELECT TOP 1 ISNULL(B.INBOUND_GST,0) FROM " +
+            "##plant##FINBILLHDR AS B WHERE B.GRNO = R.GRNO) END) ELSE 0 END) ELSE (CASE WHEN" +
+            "(SELECT ISNULL(P.TAXID,0) FROM ##plant##POHDR AS P WHERE P.PONO=R.PONO) > 0 THEN" +
+            "(CASE WHEN (SELECT ISNULL(T.ISZERO,1) FROM FINCOUNTRYTAXTYPE AS T WHERE T.ID IN (SELECT ISNULL(P.TAXID,0) " +
+            "FROM ##plant##POHDR AS P WHERE P.PONO=R.PONO)) > 0 THEN 0 ELSE (SELECT TOP 1 ISNULL(P.INBOUND_GST,0) FROM " +
+            "##plant##POHDR AS P WHERE P.PONO=R.PONO) END) ELSE 0 END) END)) AS TAX FROM ##plant##RECVDET AS R " +
+            "WHERE CONVERT(DATETIME,R.RECVDATE, 104) between CONVERT(DATETIME, :pk0, 104) and  CONVERT(DATETIME, :pk1, 104) " +
+            "GROUP BY R.ITEM,R.ITEMDESC,R.PONO,R.GRNO,R.CNAME) AS A  WHERE ISNULL(A.NAME,'') != '' AND ISNULL(A.NAME,'') = :pk2 " +
+            "GROUP BY A.ITEM,A.ITEMDESC,A.NAME) AS B",nativeQuery = true)
+    String getTotalTaxOfSupplierWithTax(String pk0, String pk1,String pk2);
+}

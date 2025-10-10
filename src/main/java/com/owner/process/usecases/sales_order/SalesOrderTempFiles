@@ -1,0 +1,1727 @@
+
+    @RequestMapping(value = "/sales-order/cancel-v1", method = RequestMethod.POST)
+    public ResponseEntity<?> cancelSalesOrderVersion1(HttpServletRequest request
+            , @RequestBody String salesOrder) throws Exception {
+        String shopDomain;
+        if (!testing) {
+            shopDomain = request.getHeader("X-Shopify-Shop-Domain");
+        } else {
+            shopDomain = "uclo-test.myshopify.com";
+        }
+        LoggerConfig.logger.info("Sales-order cancel post started");
+        long start = System.currentTimeMillis();
+
+        ObjectMapper objectMapper = new ObjectMapper();
+        SalesOrderMain salesOrderMain;
+        try {
+            salesOrderMain = objectMapper.readValue(salesOrder, SalesOrderMain.class);
+            LoggerConfig.logger.info("Sales-order cancel body param matched " + salesOrder);
+        } catch (Exception e) {
+            LoggerConfig.logger.info("Sales-order cancel body param not matched " + salesOrder);
+            LoggerConfig.logger.error(e.getMessage());
+            LoggerConfig.logger.info("Time diff " + (System.currentTimeMillis() - start));
+            //throw new Exception(e.getMessage());
+            return new ResponseEntity<>("", HttpStatus.OK);
+        }
+        String plant = shopifyConfigService.getPlantFromDomainName(shopDomain);
+        plant = claimsSet.getClaimsDetailsAfterSetWtAuth(plant);
+        String customerName = salesOrderMain.getCustomer().getFirstName() +
+                salesOrderMain.getCustomer().getLastName();
+
+        DateTimeCalc dateTimeCalc = new DateTimeCalc();
+        String[] collectionDateTime = dateTimeCalc
+                .dateTimeFormat(salesOrderMain.getCreatedAt()).split(" ");
+        String[] collectionUcloDateTime = dateTimeCalc
+                .ucloDateTimeFormatTwo(salesOrderMain.getCreatedAt()).split(" ");
+        String createdAt = dateTimeCalc.getUcloTodayDateTime();
+        String createdBy = "API_Shopify";
+        String status;
+
+        String doNo = salesOrderMain.getName();
+        // update the dodet for any changes
+        status = doHdrService.checkDoHdrPk(doNo);
+        if (status.equals("1")) {
+            LoggerConfig.logger.info("Sales-order cancel doHdr value not there");
+            LoggerConfig.logger.info("Time diff " + (System.currentTimeMillis() - start));
+            return new ResponseEntity<>("", HttpStatus.OK);
+        }
+        DoHdr doHdrMain = doHdrService.getDoHdrPk(doNo);
+        DoTransferHdr doTransferHdr;
+
+        List<DoDet> addedLineItems = doDetService.getAllDoDetPkOrderByLn(doNo);
+        List<LineItems> updatedLineItems = salesOrderMain.getLineItems();
+        int addedLineItemsCount = addedLineItems.size();
+        int addedLineItemMatchCount = 0;
+
+        //mapper
+        ModelMapper modelMapper = new ModelMapper();
+        modelMapper.getConfiguration().setAmbiguityIgnored(true);
+        for (int i = 0; i < updatedLineItems.size(); i++) {
+            DoDet doDet;
+            DoTransferDet doTransferDet;
+            //check the line item already removed
+            if (updatedLineItems.get(i).getFulfillableQuantity() == 0
+                    && !updatedLineItems.get(i).getSku().equals(addedLineItems.get(i - addedLineItemMatchCount).getItem())) {
+                addedLineItemMatchCount++;
+                continue;
+            }
+//          1. Check if the line exists.
+            long fulfilledQuantity = updatedLineItems.get(i).getFulfillableQuantity();
+            if (fulfilledQuantity != 0 && i < addedLineItemsCount + addedLineItemMatchCount) {
+                LoggerConfig.logger.info("Sales-order cancel close the item");
+                long addedQuantity = (long) addedLineItems.get(i - addedLineItemMatchCount).getQuantityOr();
+                doDet = addedLineItems.get(i - addedLineItemMatchCount);
+
+                //activity log update product
+                ActivityLog logApiCall = new ActivityLog();
+                logApiCall.setPlant(plant);
+                logApiCall.setDirType("SALES_ORDER_UPDATE_PRODUCT");
+                logApiCall.setOrdNum(salesOrderMain.getName());
+                logApiCall.setItem(doDet.getItem());
+                logApiCall.setQty(0.00);
+                logApiCall.setTransactionDate(dateTimeCalc.getTodayDateTime().split(" ")[0]);
+                logApiCall.setCrAt(createdAt);
+                logApiCall.setCrBy(createdBy);
+                logApiCall.setRemarks("Line Number : " + doDet.getDoLineNo() + " , Unit Price : " + doDet.getUnitPrice());
+                activityLogService.setActivityLogDetails(logApiCall);
+                //check the item is nonStock
+                Boolean nonStock = itemMstService.checkItemMstNonStock(doDet.getItem());
+                LoggerConfig.logger.info("Sales-order cancel for item " + doDet.getItem() + " ,its nonStock is " + nonStock);
+
+                doDet = reversingProcess(doDet, addedQuantity, fulfilledQuantity, nonStock);
+                doDet.setPickStatus("C");
+                doDet.setLineStatus("C");
+                //modify
+                status = doDetService.checkDoDetPk(doNo, i + 1);
+                if (!status.equals("1"))
+                    doDetService.setDoDetDetails(doDet);
+                //doDetService.deleteDoDetPk(doNo,i+1);
+                doTransferDet = modelMapper.map(doDet,
+                        new TypeToken<DoTransferDet>() {
+                        }.getType());
+                status = transferDetService.checkDoTransferDetPk(doNo, i + 1);
+                if (!status.equals("1"))
+                    transferDetService.setDoTransferDetDetails(doTransferDet);
+            }
+        }
+
+        doHdrMain.setStatus("C");
+        doHdrMain.setPickStatus("C");
+        doHdrMain.setOrderStatus("FORCE CLOSE");
+
+        doHdrService.setDoHdrDetails(doHdrMain);
+        doTransferHdr = modelMapper.map(doHdrMain,
+                new TypeToken<DoTransferHdr>() {
+                }.getType());
+        transferHdrService.setDoTransferHdrDetails(doTransferHdr);
+        //activity log api call
+        ActivityLog logApiCall = new ActivityLog();
+        logApiCall.setPlant(plant);
+        logApiCall.setDirType("FORCE_CLOSE");
+        logApiCall.setOrdNum(salesOrderMain.getName());
+        logApiCall.setQty(0.00);
+        logApiCall.setTransactionDate(dateTimeCalc.getTodayDateTime().split(" ")[0]);
+        logApiCall.setRemarks(customerName);
+        logApiCall.setCrAt(createdAt);
+        logApiCall.setCrBy(createdBy);
+        activityLogService.setActivityLogDetails(logApiCall);
+        LoggerConfig.logger.info("Sales-order cancel post closed");
+        LoggerConfig.logger.info("Sales-order cancel time diff - " + (System.currentTimeMillis() - start));
+        return new ResponseEntity<>("", HttpStatus.OK);
+    }
+
+
+    @RequestMapping(value = "/sales-order/create-v2", method = RequestMethod.POST)
+    public ResponseEntity<?> newSalesOrderV2(HttpServletRequest request,
+                                             @RequestBody String salesOrder
+    ) throws Exception {
+        String shopDomain;
+        if (!testing) {
+            shopDomain = request.getHeader("X-Shopify-Shop-Domain");
+        } else {
+            shopDomain = "uclo-test.myshopify.com";
+        }
+        LoggerConfig.logger.info("sales-order create post started for " + shopDomain);
+        long start = System.currentTimeMillis();
+        //LoggerConfig.logger.info("Body param - " + salesOrder);
+
+        ObjectMapper objectMapper = new ObjectMapper();
+        SalesOrderMain salesOrderMain;
+        //static
+        String UOM = "PCS";
+        try {
+            salesOrderMain = objectMapper.readValue(salesOrder, SalesOrderMain.class);
+            LoggerConfig.logger.info("Body param matched " + salesOrder);
+        } catch (Exception e) {
+            LoggerConfig.logger.info("Body param not matched " + salesOrder);
+            LoggerConfig.logger.error(e.getMessage());
+            LoggerConfig.logger.info("Time diff " + (System.currentTimeMillis() - start));
+            //throw new Exception(e.getMessage());
+            return new ResponseEntity<>("", HttpStatus.OK);
+        }
+
+        String plant = shopifyConfigService.getPlantFromDomainName(shopDomain);
+        //String plant = "test";
+        plant = claimsSet.getClaimsDetailsAfterSetWtAuth(plant);
+
+
+        DateTimeCalc dateTimeCalc = new DateTimeCalc();
+        String[] collectionDateTime = dateTimeCalc
+                .dateTimeFormat(salesOrderMain.getCreatedAt()).split(" ");
+        String[] collectionUcloDateTime = dateTimeCalc
+                .ucloDateTimeFormatTwo(salesOrderMain.getCreatedAt()).split(" ");
+        String createdAt = dateTimeCalc.getUcloTodayDateTime();
+        String createdBy = "API_Shopify";
+        String tnsDate = dateTimeCalc.getTodayDateTime().split(" ")[0];
+        String status;
+        ActivityLogModel activityLogModel = new ActivityLogModel();
+
+        // initial call
+        activityLogService.setActivityLogDetails(
+                activityLogModel.setActivityLogModel(
+                        plant, "SHOPIFY_NOTIFICATION", salesOrderMain.getName(),
+                        "", "", 0.0, "",
+                        tnsDate, createdAt, createdBy, "SUCCESS"));
+
+        //Declaration
+        DoHdr doHdr = new DoHdr();
+        //mapper
+        ModelMapper modelMapper = new ModelMapper();
+        modelMapper.getConfiguration().setAmbiguityIgnored(true);
+
+        DoTransferHdr doTransferHdr;
+        DoTransferDet doTransferDet;
+        AlternateItemMapping alternateItemMapping;
+
+        doHdr.setPlant(plant);
+
+
+        doHdr.setJobNumber(String.valueOf(salesOrderMain.getId()));
+        doHdr.setCollectionDate(collectionUcloDateTime[0]);
+        //doHdr.setDeliveryDate(collectionUcloDateTime[0]);
+        doHdr.setCollectionTime(collectionDateTime[1].substring(0, 5).replaceAll(":", ""));
+
+
+        //For CURRENCYUSEQT need to get the equivalent value from Currency ID
+        String currencyId = salesOrderMain.getCurrency();
+        String currencyUseQt = currencyService.getCurrencyDetailById(currencyId).getCurrencyUseQt();
+        //LoggerConfig.logger.info("Error currencyUseQt " + currencyUseQt);
+        doHdr.setCurrencyId(currencyId);
+        doHdr.setDoNo(salesOrderMain.getName());
+
+        int taxLineCount = salesOrderMain.getTaxLines().size();
+        List<TaxLines> taxLines = salesOrderMain.getTaxLines();
+        double taxCollection = 0.0;
+        for (int i = 0; i < taxLineCount; i++) {
+            taxCollection = taxCollection + taxLines.get(i).getRate();
+        }
+        doHdr.setOutboundGst((float) (taxCollection * 100));
+
+        //customer details
+        Customer customerDetail;
+        customerDetail = salesOrderMain.getCustomer();
+
+        //String customerName = customerDetail.getFirstName() +" "+customerDetail.getLastName();
+
+        doHdr.setContactNumber(customerDetail.getPhone());
+
+        //Customer Default Address
+        DefaultAddress defaultAddress;
+        defaultAddress = customerDetail.getDefaultAddress();
+        //String customerName = defaultAddress.getName();
+        doHdr.setCustomerName(salesOrderMain.getBillingAddress().getName());
+        doHdr.setAddress(defaultAddress.getAddress1());
+        doHdr.setAddressTwo(defaultAddress.getAddress2());
+        doHdr.setAddressThree(defaultAddress.getCity());
+        doHdr.setCustomerName(defaultAddress.getName());
+
+        //Default value for doheader
+        doHdr.setOrderType("Shopify");
+        doHdr.setStatus("N");
+        doHdr.setPickStatus("N");
+        doHdr.setCrAt(createdAt);
+        doHdr.setCrBy(createdBy);
+        doHdr.setOrderDiscount(0);
+        doHdr.setShippingCost(0);
+        doHdr.setDeliveryDateFormat(0);
+        doHdr.setOrderStatus("Open");
+        doHdr.setAdjustment(0);
+        doHdr.setItemRates(0);
+        doHdr.setProjectId(0);
+
+        //v2
+        doHdr.setDelDate(collectionUcloDateTime[0]);
+        doHdr.setCurrencyUseQt(Float.parseFloat(currencyUseQt));
+        doHdr.setDiscountType(currencyId);
+        doHdr.setOrderDiscountType(currencyId);
+        //v3
+        doHdr.setDiscount(Float.parseFloat(salesOrderMain.getTotalDiscounts()));
+        doHdr.setShippingCost(Float.parseFloat(
+                salesOrderMain.getTotalShippingPriceSet().getShopMoney().getAmount()));
+
+
+        CustomerMstModel customerMstModel = new CustomerMstModel();
+        CustomerMst shippingAddress = customerMstModel.setShippingAddressModel(salesOrderMain, plant);
+        //customerMst save
+        //status = salesOrderService.checkCustomerMstPk(CustomerNo);
+        String phoneNo = salesOrderMain.getPhone();
+        String customerNo = null;
+        if (phoneNo != null) {
+            shippingAddress = customerMstService.checkCustomerMstPk(shippingAddress);
+        } else {
+            shippingAddress = customerMstService.checkCustomerExistStatusUsgEmail(shippingAddress);
+        }
+
+        if (shippingAddress.getId() == 0) {
+            TableControl tableControl = tableControlService.getTableControlPk(plant, "CUSTOMER");
+            TableControlModel tableControlModel = new TableControlModel();
+            tableControl = tableControlModel.setTableControlModel(plant, createdAt, createdBy, "CUSTOMER", tableControl);
+            //save or update
+            tableControlService.setTableControlDetails(tableControl);
+
+            customerNo = tableControlModel.generateNewCustomerKey(tableControl.getNxtSeq());
+            shippingAddress.setCustomerNo(customerNo);
+            shippingAddress.setUserId(customerNo);
+            shippingAddress.setCrBy(createdBy);
+            shippingAddress.setCrAt(createdAt);
+            customerMstService.setCustomerMstDetails(shippingAddress);
+            LoggerConfig.logger.info("customerNo is " + customerNo + " value saved");
+
+
+            doHdr.setShippingCustomer(shippingAddress.getCustomerName());
+            doHdr.setShippingId(shippingAddress.getCustomerNo());
+
+
+            //activity log for custMst shipping save
+            activityLogService.setActivityLogDetails(
+                    activityLogModel.setActivityLogModel(
+                            plant, "CREATE_CUSTOMER", "", "",
+                            "", 0.0, customerNo,
+                            tnsDate, createdAt, createdBy, shippingAddress.getCustomerName()));
+
+//            //activity log for custMst save by Navas
+//            ActivityLog logCustMstSave = new ActivityLog();
+//            logCustMstSave.setPlant(plant);
+//            logCustMstSave.setDirType("CREATE_CUSTOMER");
+//            logCustMstSave.setCustNo(String.valueOf(shippingAddress.getCustomerNo()));
+//            logCustMstSave.setTransactionDate(dateTimeCalc.getTodayDateTime().split(" ")[0]);
+//            logCustMstSave.setCrAt(createdAt);
+//            logCustMstSave.setCrBy(createdBy);
+//            logCustMstSave.setRemarks(shippingAddress.getCustomerName());
+//            activityLogService.setActivityLogDetails(logCustMstSave);
+        } else {
+            customerMstService.setCustomerMstDetails(shippingAddress);
+            doHdr.setShippingCustomer(shippingAddress.getCustomerName());
+            doHdr.setShippingId(shippingAddress.getCustomerNo());
+        }
+
+        CustomerMst billingAddress = customerMstModel.setBillingAddressModel(salesOrderMain, plant);
+
+        if (billingAddress.getWorkPhone() != null) {
+            billingAddress = customerMstService.checkCustomerMstPk(billingAddress);
+            if (billingAddress.getId() == 0) {
+                TableControl tableControl = tableControlService.getTableControlPk(plant, "CUSTOMER");
+                TableControlModel tableControlModel = new TableControlModel();
+                tableControl = tableControlModel.setTableControlModel(plant, createdAt, createdBy, "CUSTOMER", tableControl);
+                //save or update
+                tableControlService.setTableControlDetails(tableControl);
+
+                customerNo = tableControlModel.generateNewCustomerKey(tableControl.getNxtSeq());
+                billingAddress.setCustomerNo(customerNo);
+                billingAddress.setUserId(customerNo);
+                billingAddress.setCrBy(createdBy);
+                billingAddress.setCrAt(createdAt);
+                customerMstService.setCustomerMstDetails(billingAddress);
+                LoggerConfig.logger.info("customerNo is " + customerNo + " value saved");
+
+                doHdr.setCustomerCode(billingAddress.getCustomerNo());
+                doHdr.setCustomerName(billingAddress.getCustomerName());
+
+                //activity log for custMst billing save
+                activityLogService.setActivityLogDetails(
+                        activityLogModel.setActivityLogModel(
+                                plant, "CREATE_CUSTOMER", "", "", "", 0.0, customerNo,
+                                tnsDate, createdAt, createdBy, billingAddress.getCustomerName()));
+
+                //activity log for custMst save by Navas
+//                ActivityLog logCustMstSave = new ActivityLog();
+//                logCustMstSave.setPlant(plant);
+//                logCustMstSave.setDirType("CREATE_CUSTOMER");
+//                logCustMstSave.setCustNo(String.valueOf(billingAddress.getCustomerNo()));
+//                logCustMstSave.setTransactionDate(dateTimeCalc.getTodayDateTime().split(" ")[0]);
+//                logCustMstSave.setCrAt(createdAt);
+//                logCustMstSave.setCrBy(createdBy);
+//                logCustMstSave.setRemarks(billingAddress.getCustomerName());
+//                activityLogService.setActivityLogDetails(logCustMstSave);
+            } else {
+                customerMstService.setCustomerMstDetails(billingAddress);
+                doHdr.setCustomerCode(billingAddress.getCustomerNo());
+                doHdr.setCustomerName(billingAddress.getCustomerName());
+            }
+        } else {
+            doHdr.setCustomerCode(shippingAddress.getCustomerNo());
+            doHdr.setCustomerName(shippingAddress.getCustomerName());
+        }
+        //DoHdr save
+        status = doHdrService.checkDoHdrPk(salesOrderMain.getName());
+        if (status.equals("1")) {
+            doHdrService.setDoHdrDetails(doHdr);
+            LoggerConfig.logger.info("Dohdr value is " + doHdr.getDoNo() + " saved");
+
+            // activity log for doHdr save
+            activityLogService.setActivityLogDetails(
+                    activityLogModel.setActivityLogModel(
+                            plant, "CREATE_SALES_ORDER", salesOrderMain.getName(),
+                            "", "", 0.0, customerNo,
+                            tnsDate, createdAt, createdBy, salesOrderMain.getBillingAddress().getName()));
+
+            // activity log for doHdr save
+//            ActivityLog logDoHdrSave = new ActivityLog();
+//            logDoHdrSave.setPlant(plant);
+//            logDoHdrSave.setDirType("CREATE_SALES_ORDER");
+//            logDoHdrSave.setOrdNum(doHdr.getDoNo());
+//            logDoHdrSave.setCustNo(doHdr.getCustomerCode());
+//            logDoHdrSave.setTransactionDate(dateTimeCalc.getTodayDateTime().split(" ")[0]);
+//
+//            logDoHdrSave.setCrAt(createdAt);
+//            logDoHdrSave.setCrBy(createdBy);
+//            logDoHdrSave.setRemarks(customerName);
+//            activityLogService.setActivityLogDetails(logDoHdrSave);
+        } else {
+            LoggerConfig.logger.error("Dohdr value is " + doHdr.getDoNo() + " already set");
+            //throw new Exception("Hdr value " + doHdr.getDoNo() + " already set");
+            LoggerConfig.logger.info("Time diff " + (System.currentTimeMillis() - start));
+            return new ResponseEntity<>("", HttpStatus.OK);
+        }
+        //mapper
+        doTransferHdr = modelMapper.map(doHdr,
+                new TypeToken<DoTransferHdr>() {
+                }.getType());
+        // do transferhdr save
+        status = transferHdrService.checkDoTransferHdrPk(salesOrderMain.getName());
+        if (status.equals("1")) {
+            transferHdrService.setDoTransferHdrDetails(doTransferHdr);
+            LoggerConfig.logger.info("DoTransferHdr value saved");
+        } else {
+            LoggerConfig.logger.info("DoTransferHdr value already set");
+            //throw new Exception("DoTransferHdr value already set");
+        }
+
+        //line_items loop depend on product
+        List<LineItems> lineItems = salesOrderMain.getLineItems();
+        int lineItemsCount = lineItems.size();
+        int lineNumber;
+        DoDetModel doDetModel = new DoDetModel();
+        ItemMstModel itemMstModel = new ItemMstModel();
+        for (int i = 0; i < lineItemsCount; i++) {
+
+            DoDet doDet = doDetModel.setDoDetModel(salesOrderMain, plant, tnsDate, currencyUseQt, i, UOM,
+                    createdAt, createdBy);
+
+//            DoDet doDet = new DoDet();
+//            doDet.setPlant(plant);
+//            doDet.setTransactionDate(collectionDateTime[0]);
+//            doDet.setCurrencySequence(Float.parseFloat(currencyUseQt));
+//            doDet.setDoNo(salesOrderMain.getName());
+//            doDet.setUserFieldThree(customerName);
+
+
+            lineNumber = i + 1;
+//            doDet.setDoLineNo(lineNumber);
+//            doDet.setUnitMo(String.valueOf(lineItems.get(i).getGrams()));
+//            doDet.setItemDescription(lineItems.get(i).getName());
+//            doDet.setUserFieldOne(lineItems.get(i).getName());
+//            doDet.setUnitPrice(Float.parseFloat(lineItems.get(i).getPrice()));
+//            doDet.setQuantityOr(lineItems.get(i).getQuantity());
+//            doDet.setItem(lineItems.get(i).getSku());
+            //Default value for dodet
+//            doDet.setEstimateLineNo(0);
+//            doDet.setPickStatus("N");
+//            doDet.setLineStatus("N");
+//            doDet.setQuantityIs(0);
+//            doDet.setQuantityPick(0);
+//            doDet.setUnitMo(UOM);
+//            doDet.setCrAt(createdAt);
+//            doDet.setCrBy(createdBy);
+//            // v2
+//            doDet.setAccountName("Local sales - retail");
+//            // v4
+//            doDet.setTaxType("STANDARD RATED [0.0%]");
+            //DoDet save
+            status = doDetService.checkDoDetPk(salesOrderMain.getName(), lineNumber);
+            if (status.equals("1")) {
+                doDetService.setDoDetDetails(doDet);
+                LoggerConfig.logger.info("doDet value of " + lineNumber + " Dono is " + doDet.getDoNo());
+
+                //activity log for dodet save
+                activityLogService.setActivityLogDetails(
+                        activityLogModel.setActivityLogModel(
+                                plant, "SALES_ORDER_ADD_PRODUCT", doDet.getDoNo(),
+                                String.valueOf(doDet.getDoLineNo()), doDet.getItem(), doDet.getQuantityOr(), customerNo,
+                                tnsDate, createdAt, createdBy, ""));
+
+//                //activity log for dodet save
+//                ActivityLog logDoDetSave = new ActivityLog();
+//                logDoDetSave.setPlant(plant);
+//                logDoDetSave.setDirType("SALES_ORDER_ADD_PRODUCT");
+//                logDoDetSave.setLnNo(String.valueOf(doDet.getDoLineNo()));
+//                logDoDetSave.setOrdNum(doDet.getDoNo());
+//                logDoDetSave.setTransactionDate(dateTimeCalc.getTodayDateTime().split(" ")[0]);
+//                logDoDetSave.setItem(doDet.getItem());
+//                logDoDetSave.setQty((double) doDet.getQuantityOr());
+//                logDoDetSave.setCrAt(createdAt);
+//                logDoDetSave.setCrBy(createdBy);
+//                activityLogService.setActivityLogDetails(logDoDetSave);
+            } else {
+                LoggerConfig.logger.warn("doDet value of " + lineNumber + " Dono is " + doDet.getDoNo() + " already registered");
+                //throw new Exception("doDet value of " + lineNumber + " Dono is " + doDet.getDoNo() + " already registered");
+            }
+            doTransferDet = modelMapper.map(doDet,
+                    new TypeToken<DoTransferDet>() {
+                    }.getType());
+
+            status = transferDetService.checkDoTransferDetPk(salesOrderMain.getName(), lineNumber);
+            if (status.equals("1")) {
+                LoggerConfig.logger.info("doTransferDet value of " + lineNumber + " Dono is " + doTransferDet.getDoNo());
+                transferDetService.setDoTransferDetDetails(doTransferDet);
+            } else {
+                LoggerConfig.logger.warn("doTransferDet value of " + lineNumber + " Dono is " + doTransferDet.getDoNo() + " already registered");
+                //throw new Exception("doTransferDet value of " + lineNumber + " Dono is " + doTransferDet.getDoNo() + " already registered");
+
+            }
+
+            //save dodet remarks
+            DoDetRemarks doDetRemarks = new DoDetRemarks();
+            doDetRemarks.setPlant(plant);
+            doDetRemarks.setCrAt(createdAt);
+            doDetRemarks.setCrBy(createdBy);
+            doDetRemarks.setDoLineNo(doDet.getDoLineNo());
+            doDetRemarks.setDoNo(doDet.getDoNo());
+            doDetRemarks.setItem(doDet.getItem());
+            doDetRemarks.setRemarks("");
+            doDetRemarks.setIdRemarks(0);
+            status = doDetRemarksService.checkDoDetRemarksPk(salesOrderMain.getName(), lineNumber, lineItems.get(i).getSku());
+
+            if (status.equals("1")) {
+                LoggerConfig.logger.info("doDetRemarks value of " + lineNumber + " Dono is " + doDetRemarks.getDoNo());
+                doDetRemarksService.setDoDetRemarksDetails(doDetRemarks);
+            } else {
+                LoggerConfig.logger.warn("doDetRemarks value of " + lineNumber + " Dono is " + doDetRemarks.getDoNo() + " already registered");
+                //throw new Exception("value already set");
+            }
+
+            ItemMst itemMst = itemMstModel.setItemMstModel(plant, salesOrderMain, i, UOM, createdAt, createdBy);
+
+            //  ItemMst itemMst2 = new ItemMst();
+//            itemMst.setPlant(plant);
+//            itemMst.setItemDescription(lineItems.get(i).getName());
+//            itemMst.setUnitPrice(Float.parseFloat(lineItems.get(i).getPrice()));
+//            itemMst.setItem(lineItems.get(i).getSku());
+//            //repeated
+//            if (lineItems.get(i).getVariantInventoryManagement() == null)
+//                itemMst.setNonStackFlag("Y");
+//            else
+//                itemMst.setNonStackFlag("N");
+//            //Default value for itemmst
+//            itemMst.setCost(0);
+//            itemMst.setDiscount(0);
+//            itemMst.setItemType("NOTYPE");
+//            itemMst.setProductBrandId("NOBRAND");
+//            itemMst.setStackUom(UOM);
+//            itemMst.setProductClassId("NOCLASSIFICATION");
+//            itemMst.setItemType("NOTYPE");
+//            itemMst.setIsActive("Y");
+//            itemMst.setMinsPrice(0);
+//            itemMst.setProductGst(0);
+//            //itemMst.setDiscount(0);
+//            itemMst.setNetWeight(0);
+//            itemMst.setGrossWeight(0);
+//            itemMst.setCrAt(createdAt);
+//            itemMst.setCrBy(createdBy);
+//            itemMst.setUserFieldOne("N");
+//            itemMst.setStackQuantity(0);
+//            itemMst.setMaximumStackQuantity(0);
+//            //v2
+//            itemMst.setIsBasicUom(1);
+//            itemMst.setPurchaseUom(UOM);
+//            itemMst.setSalesUom(UOM);
+//            itemMst.setInventoryUom(UOM);
+
+            //itemMst save
+            status = itemMstService.checkItemMstPk(lineItems.get(i).getSku());
+            if (status.equals("1")) {
+                itemMstService.setItemMstDetails(itemMst);
+                LoggerConfig.logger.info("itemMst value of " + lineNumber + " sku is " + itemMst.getItem());
+
+                //activity log for itemMst
+                activityLogService.setActivityLogDetails(
+                        activityLogModel.setActivityLogModel(
+                                plant, "CREATE_PRODUCT", "", "",
+                                itemMst.getItem(), 0.0, "",
+                                tnsDate, createdAt, createdBy, ""));
+
+                //activity log for itemMst save by Navas
+//                ActivityLog logItemMstSave = new ActivityLog();
+//                logItemMstSave.setPlant(plant);
+//                logItemMstSave.setDirType("CREATE_PRODUCT");
+//                logItemMstSave.setTransactionDate(dateTimeCalc.getTodayDateTime().split(" ")[0]);
+//                logItemMstSave.setItem(itemMst.getItem());
+//                logItemMstSave.setCrAt(createdAt);
+//                logItemMstSave.setCrBy(createdBy);
+//                activityLogService.setActivityLogDetails(logItemMstSave);
+            } else {
+                LoggerConfig.logger.warn("itemMst value of " + lineNumber + " sku is " + itemMst.getItem() + " already registered");
+            }
+
+            alternateItemMapping = modelMapper.map(itemMst,
+                    new TypeToken<AlternateItemMapping>() {
+                    }.getType());
+            //save alternate item
+            alternateItemMapping.setAlternateItemName(lineItems.get(i).getSku());
+            status = alternateItemMappingService.checkAlternateItemMappingPk(lineItems.get(i).getSku());
+            if (status.equals("1")) {
+                alternateItemMappingService.setAlternateItemMappingDetails(alternateItemMapping);
+            }
+            ShopifyItem shopifyItem = new ShopifyItem();
+            shopifyItem.setPlant(plant);
+            shopifyItem.setProductId(String.valueOf(lineItems.get(i).getProductId()));
+            shopifyItem.setSku(lineItems.get(i).getSku());
+            shopifyItem.setVariantId(String.valueOf(lineItems.get(i).getVariantId()));
+
+            //shopifyItem save
+            //ShopifyItem shopifyItemTmp = shopifyItemService.getAllShopifyItemPk(plant, lineItems.get(i).getSku());
+            status = shopifyItemService.checkShopifyItemPk(plant, lineItems.get(i).getSku());
+            if (status.equals("1")) {
+                ShopifyConfig spyConfig = shopifyConfigService.getAllFromPlant(plant);
+
+                String authorize = salesOrderService.getCryptoValue(spyConfig.getApiKey() + ":" + spyConfig.getApiPassword(), 1);
+                String inventoryId = salesOrderService.getInventoryIdFromShopifyUrl(authorize
+                        , spyConfig.getDomainName(), shopifyItem.getVariantId());
+                shopifyItem.setInventoryId(inventoryId);
+                shopifyItem.setCrAt(createdAt);
+                shopifyItem.setCrBy(createdBy);
+                LoggerConfig.logger.info("shopifyItem value of " + lineNumber + " sku is " + shopifyItem.getSku());
+                shopifyItemService.setShopifyItemDetails(shopifyItem);
+
+                //activity log for shopify  item save
+                activityLogService.setActivityLogDetails(
+                        activityLogModel.setActivityLogModel(
+                                plant, "CREATE_SHOPIFY_PRODUCT", "", "",
+                                itemMst.getItem(), 0.0, "",
+                                tnsDate, createdAt, createdBy, ""));
+
+
+                //activity log for shopify  item save
+//                ActivityLog logShopifyItemSave = new ActivityLog();
+//                logShopifyItemSave.setPlant(plant);
+//                logShopifyItemSave.setDirType("CREATE_SHOPIFY_PRODUCT");
+//                logShopifyItemSave.setItem(itemMst.getItem());
+//                logShopifyItemSave.setQty(0.00);
+//                logShopifyItemSave.setTransactionDate(dateTimeCalc.getTodayDateTime().split(" ")[0]);
+//                logShopifyItemSave.setCrAt(createdAt);
+//                logShopifyItemSave.setCrBy(createdBy);
+//                activityLogService.setActivityLogDetails(logShopifyItemSave);
+            } else {
+                //need to update no need
+                //shopifyItemTmp.setUpAt(createdAt);
+                //shopifyItemTmp.setUpBy(createdBy);
+                LoggerConfig.logger.info("shopifyItem value of " + lineNumber + " sku is " + shopifyItem.getSku() + " already registered");
+                //shopifyItemService.setShopifyItemDetails(shopifyItemTmp);
+                //throw new Exception("shopifyItem value already set");
+            }
+
+        }
+        LoggerConfig.logger.info("sales-order create post closed");
+        LoggerConfig.logger.info("Time diff " + (System.currentTimeMillis() - start) / 1000 + "s");
+        return new ResponseEntity<>("", HttpStatus.OK);
+    }
+
+    @RequestMapping(value = "/sales-order/create-v1", method = RequestMethod.POST)
+    public ResponseEntity<?> newSalesOrderOld(HttpServletRequest request,
+                                              @RequestBody String salesOrder
+    ) throws Exception {
+        String shopDomain;
+        if (!testing) {
+            shopDomain = request.getHeader("X-Shopify-Shop-Domain");
+        } else {
+            shopDomain = "uclo-test.myshopify.com";
+        }
+        LoggerConfig.logger.info("sales-order create post started for " + shopDomain);
+        long start = System.currentTimeMillis();
+        //LoggerConfig.logger.info("Body param - " + salesOrder);
+
+        ObjectMapper objectMapper = new ObjectMapper();
+        SalesOrderMain salesOrderMain;
+        //static
+        String UOM = "PCS";
+        try {
+            salesOrderMain = objectMapper.readValue(salesOrder, SalesOrderMain.class);
+            LoggerConfig.logger.info("Body param matched " + salesOrder);
+        } catch (Exception e) {
+            LoggerConfig.logger.info("Body param not matched " + salesOrder);
+            LoggerConfig.logger.error(e.getMessage());
+            LoggerConfig.logger.info("Time diff " + (System.currentTimeMillis() - start));
+            //throw new Exception(e.getMessage());
+            return new ResponseEntity<>("", HttpStatus.OK);
+        }
+
+        String plant = shopifyConfigService.getPlantFromDomainName(shopDomain);
+        //String plant = "test";
+        plant = claimsSet.getClaimsDetailsAfterSetWtAuth(plant);
+
+
+        DateTimeCalc dateTimeCalc = new DateTimeCalc();
+        String[] collectionDateTime = dateTimeCalc
+                .dateTimeFormat(salesOrderMain.getCreatedAt()).split(" ");
+        String[] collectionUcloDateTime = dateTimeCalc
+                .ucloDateTimeFormatTwo(salesOrderMain.getCreatedAt()).split(" ");
+        String createdAt = dateTimeCalc.getUcloTodayDateTime();
+        String createdBy = "API_Shopify";
+        String status;
+
+        //activity log api call
+        ActivityLog logApiCall = new ActivityLog();
+        logApiCall.setPlant(plant);
+        logApiCall.setDirType("SHOPIFY_NOTIFICATION");
+        logApiCall.setOrdNum(salesOrderMain.getName());
+        logApiCall.setTransactionDate(dateTimeCalc.getTodayDateTime().split(" ")[0]);
+        logApiCall.setCrAt(createdAt);
+        logApiCall.setCrBy(createdBy);
+        logApiCall.setRemarks("SUCCESS");
+        activityLogService.setActivityLogDetails(logApiCall);
+
+        //Declaration
+        DoHdr doHdr = new DoHdr();
+
+        CustomerMst customerMst = new CustomerMst();
+
+        //mapper
+        ModelMapper modelMapper = new ModelMapper();
+        modelMapper.getConfiguration().setAmbiguityIgnored(true);
+
+        DoTransferHdr doTransferHdr;
+        DoTransferDet doTransferDet;
+        AlternateItemMapping alternateItemMapping;
+
+        doHdr.setPlant(plant);
+        customerMst.setPlant(plant);
+
+
+        doHdr.setJobNumber(String.valueOf(salesOrderMain.getId()));
+        doHdr.setCollectionDate(collectionUcloDateTime[0]);
+        //doHdr.setDeliveryDate(collectionUcloDateTime[0]);
+        doHdr.setCollectionTime(collectionDateTime[1].substring(0, 5).replaceAll(":", ""));
+
+
+        //For CURRENCYUSEQT need to get the equivalent value from Currency ID
+        String currencyId = salesOrderMain.getCurrency();
+        String currencyUseQt = currencyService.getCurrencyDetailById(currencyId).getCurrencyUseQt();
+        LoggerConfig.logger.info("Error currencyUseQt " + currencyUseQt);
+        doHdr.setCurrencyId(currencyId);
+        doHdr.setDoNo(salesOrderMain.getName());
+
+        int taxLineCount = salesOrderMain.getTaxLines().size();
+        List<TaxLines> taxLines = salesOrderMain.getTaxLines();
+        double taxCollection = 0.0;
+        for (int i = 0; i < taxLineCount; i++) {
+            taxCollection = taxCollection + taxLines.get(i).getRate();
+        }
+        doHdr.setOutboundGst((float) (taxCollection * 100));
+
+        //customer details
+        Customer customerDetail;
+        customerDetail = salesOrderMain.getCustomer();
+
+        //doHdr.setCustomerCode(String.valueOf(customerDetail.getId()));
+        //String CustomerNo = String.valueOf(customerDetail.getId());
+        //customerMst.setCustomerNo(CustomerNo);
+        //customerMst.setUserId(CustomerNo);
+        customerMst.setEmail(salesOrderMain.getEmail());
+        String customerName = customerDetail.getFirstName() +
+                customerDetail.getLastName();
+        doHdr.setCustomerName(customerName);
+        doHdr.setContactNumber(customerDetail.getPhone());
+        customerMst.setWorkPhone(customerDetail.getPhone());
+
+        //Customer Default Address
+        DefaultAddress defaultAddress;
+        defaultAddress = customerDetail.getDefaultAddress();
+        //doHdr.setCustomerCode(String.valueOf(defaultAddress.getCustomerId()));
+        customerMst.setName(defaultAddress.getFirstName());
+        customerMst.setLastName(defaultAddress.getLastName());
+        doHdr.setAddress(defaultAddress.getAddress1());
+        customerMst.setAddressROne(defaultAddress.getAddress1());
+        doHdr.setAddressTwo(defaultAddress.getAddress2());
+        customerMst.setAddressRTwo(defaultAddress.getAddress2());
+        doHdr.setAddressThree(defaultAddress.getCity());
+        customerMst.setAddressRFour(defaultAddress.getCity());
+        customerMst.setState(defaultAddress.getProvince());
+        customerMst.setCountry(defaultAddress.getCountry());
+        customerMst.setZip(defaultAddress.getZip());
+        doHdr.setCustomerName(defaultAddress.getName());
+        customerMst.setCustomerName(defaultAddress.getName());
+
+        //Default value for doheader
+        doHdr.setOrderType("Shopify");
+        doHdr.setStatus("N");
+        doHdr.setPickStatus("N");
+        doHdr.setCrAt(createdAt);
+        doHdr.setCrBy(createdBy);
+        doHdr.setOrderDiscount(0);
+        doHdr.setShippingCost(0);
+        doHdr.setDeliveryDateFormat(0);
+        doHdr.setOrderStatus("Open");
+        doHdr.setAdjustment(0);
+        doHdr.setItemRates(0);
+        doHdr.setProjectId(0);
+
+        //v2
+        doHdr.setDelDate(collectionUcloDateTime[0]);
+        doHdr.setCurrencyUseQt(Float.parseFloat(currencyUseQt));
+        doHdr.setDiscountType(currencyId);
+        doHdr.setOrderDiscountType(currencyId);
+        //v3
+        doHdr.setDiscount(Float.parseFloat(salesOrderMain.getTotalDiscounts()));
+        doHdr.setShippingCost(Float.parseFloat(
+                salesOrderMain.getTotalShippingPriceSet().getShopMoney().getAmount()));
+
+        //Default value for custmst
+        customerMst.setCrAt(createdAt);
+        customerMst.setIsActive("Y");
+        customerMst.setCrBy(createdBy);
+        //v2
+        customerMst.setIsCreditLimit("N");
+        customerMst.setCreditLimitBy("NOLIMIT");
+
+        //customerMst save
+        //status = salesOrderService.checkCustomerMstPk(CustomerNo);
+        String phoneNo = salesOrderMain.getPhone();
+        String customerNo;
+        if (phoneNo != null) {
+            customerNo = customerMstService.getCustomerNoPkUsgWorkPhoneOld(phoneNo);
+        } else {
+            String email = salesOrderMain.getEmail();
+            customerNo = customerMstService.getCustomerNoPkUsgEmailOld(email);
+        }
+        if (customerNo.equals("1")) {
+            //need to add customer mst for update next sequence
+            customerNo = "C";
+            TableControl tableControl = tableControlService.getTableControlPk(plant, "CUSTOMER");
+            long sequence = 1;
+
+            if (tableControl != null) {
+                //update into next sequence
+                sequence = Long.parseLong(tableControl.getNxtSeq()) + sequence;
+                tableControl.setNxtSeq(String.valueOf(sequence));
+                tableControl.setUpAt(createdAt);
+                tableControl.setUpBy(createdBy);
+            } else {
+                //need to add insert query in table control
+                tableControl = new TableControl();
+                tableControl.setPlant(plant);
+                tableControl.setFunc("CUSTOMER");
+                tableControl.setPrefix(customerNo);
+                tableControl.setMinSeq("0000");
+                tableControl.setMaxSeq("9999");
+                tableControl.setNxtSeq(String.valueOf(sequence));
+                tableControl.setCrAt(createdAt);
+                tableControl.setCrBy(createdBy);
+            }
+            tableControlService.setTableControlDetails(tableControl);
+            int size = String.valueOf(sequence).length();
+            if (size == 4) {
+                customerNo = customerNo + sequence;
+            } else if (size == 3) {
+                customerNo = customerNo + "0" + sequence;
+            } else if (size == 2) {
+                customerNo = customerNo + "00" + sequence;
+            } else {
+                customerNo = customerNo + "000" + sequence;
+            }
+            customerMst.setCustomerNo(customerNo);
+            customerMst.setUserId(customerNo);
+            customerMstService.setCustomerMstDetails(customerMst);
+            LoggerConfig.logger.info("customerNo is " + customerNo + " value saved");
+            //activity log for custMst save by Navas
+            ActivityLog logCustMstSave = new ActivityLog();
+            logCustMstSave.setPlant(plant);
+            logCustMstSave.setDirType("CREATE_CUSTOMER");
+            logCustMstSave.setCustNo(String.valueOf(customerMst));
+            logCustMstSave.setTransactionDate(dateTimeCalc.getTodayDateTime().split(" ")[0]);
+            logCustMstSave.setItem(String.valueOf(customerMst));
+            logCustMstSave.setCrAt(createdAt);
+            logCustMstSave.setCrBy(createdBy);
+            logCustMstSave.setRemarks(customerName);
+            activityLogService.setActivityLogDetails(logCustMstSave);
+        } else {
+            LoggerConfig.logger.warn("customerName is " + customerName + " already registered");
+        }
+
+        doHdr.setCustomerCode(customerNo);
+        //DoHdr save
+        status = doHdrService.checkDoHdrPk(salesOrderMain.getName());
+        if (status.equals("1")) {
+            doHdrService.setDoHdrDetails(doHdr);
+            LoggerConfig.logger.info("Dohdr value is " + doHdr.getDoNo() + " saved");
+            // activity log for doHdr save
+            ActivityLog logDoHdrSave = new ActivityLog();
+            logDoHdrSave.setPlant(plant);
+            logDoHdrSave.setDirType("CREATE_SALES_ORDER");
+            logDoHdrSave.setOrdNum(doHdr.getDoNo());
+            logDoHdrSave.setCustNo(doHdr.getCustomerCode());
+            logDoHdrSave.setTransactionDate(dateTimeCalc.getTodayDateTime().split(" ")[0]);
+
+            logDoHdrSave.setCrAt(createdAt);
+            logDoHdrSave.setCrBy(createdBy);
+            logDoHdrSave.setRemarks(customerName);
+            activityLogService.setActivityLogDetails(logDoHdrSave);
+        } else {
+            LoggerConfig.logger.error("Dohdr value is " + doHdr.getDoNo() + " already set");
+            //throw new Exception("Hdr value " + doHdr.getDoNo() + " already set");
+            LoggerConfig.logger.info("Time diff " + (System.currentTimeMillis() - start));
+            return new ResponseEntity<>("", HttpStatus.OK);
+        }
+        //mapper
+        doTransferHdr = modelMapper.map(doHdr,
+                new TypeToken<DoTransferHdr>() {
+                }.getType());
+        // do transferhdr save
+        status = transferHdrService.checkDoTransferHdrPk(salesOrderMain.getName());
+        if (status.equals("1")) {
+            transferHdrService.setDoTransferHdrDetails(doTransferHdr);
+            LoggerConfig.logger.info("DoTransferHdr value saved");
+        } else {
+            LoggerConfig.logger.info("DoTransferHdr value already set");
+            //throw new Exception("DoTransferHdr value already set");
+        }
+
+        //line_items loop depend on product
+        List<LineItems> lineItems = salesOrderMain.getLineItems();
+        int lineItemsCount = lineItems.size();
+        int lineNumber;
+        for (int i = 0; i < lineItemsCount; i++) {
+
+            DoDet doDet = new DoDet();
+            doDet.setPlant(plant);
+            doDet.setTransactionDate(collectionDateTime[0]);
+            doDet.setCurrencySequence(Float.parseFloat(currencyUseQt));
+            doDet.setDoNo(salesOrderMain.getName());
+            doDet.setUserFieldThree(customerName);
+            DoDetRemarks doDetRemarks = new DoDetRemarks();
+            doDetRemarks.setPlant(plant);
+            ItemMst itemMst = new ItemMst();
+            itemMst.setPlant(plant);
+            ShopifyItem shopifyItem = new ShopifyItem();
+            shopifyItem.setPlant(plant);
+
+            lineNumber = i + 1;
+            doDet.setDoLineNo(lineNumber);
+            doDet.setUnitMo(String.valueOf(lineItems.get(i).getGrams()));
+            doDet.setItemDescription(lineItems.get(i).getName());
+            doDet.setUserFieldOne(lineItems.get(i).getName());
+            itemMst.setItemDescription(lineItems.get(i).getName());
+            doDet.setUnitPrice(Float.parseFloat(lineItems.get(i).getPrice()));
+            itemMst.setUnitPrice(Float.parseFloat(lineItems.get(i).getPrice()));
+            doDet.setQuantityOr(lineItems.get(i).getQuantity());
+            doDet.setItem(lineItems.get(i).getSku());
+            itemMst.setItem(lineItems.get(i).getSku());
+            //repeated
+            if (lineItems.get(i).getVariantInventoryManagement() == null)
+                itemMst.setNonStackFlag("Y");
+            else
+                itemMst.setNonStackFlag("N");
+            //Default value for dodet
+            doDet.setEstimateLineNo(0);
+            doDet.setPickStatus("N");
+            doDet.setLineStatus("N");
+            doDet.setQuantityIs(0);
+            doDet.setQuantityPick(0);
+            doDet.setUnitMo(UOM);
+            doDet.setCrAt(createdAt);
+            doDet.setCrBy(createdBy);
+            // v2
+            doDet.setAccountName("Local sales - retail");
+            // v4
+            doDet.setTaxType("STANDARD RATED [0.0%]");
+            //DoDet save
+            status = doDetService.checkDoDetPk(salesOrderMain.getName(), lineNumber);
+            if (status.equals("1")) {
+                doDetService.setDoDetDetails(doDet);
+                LoggerConfig.logger.info("doDet value of " + lineNumber + " Dono is " + doDet.getDoNo());
+                //activity log for dodet save
+                ActivityLog logDoDetSave = new ActivityLog();
+                logDoDetSave.setPlant(plant);
+                logDoDetSave.setDirType("SALES_ORDER_ADD_PRODUCT");
+                logDoDetSave.setLnNo(String.valueOf(doDet.getDoLineNo()));
+                logDoDetSave.setOrdNum(doDet.getDoNo());
+                logDoDetSave.setTransactionDate(dateTimeCalc.getTodayDateTime().split(" ")[0]);
+                logDoDetSave.setItem(doDet.getItem());
+                logDoDetSave.setQty((double) doDet.getQuantityOr());
+                logDoDetSave.setCrAt(createdAt);
+                logDoDetSave.setCrBy(createdBy);
+                activityLogService.setActivityLogDetails(logDoDetSave);
+            } else {
+                LoggerConfig.logger.warn("doDet value of " + lineNumber + " Dono is " + doDet.getDoNo() + " already registered");
+                //throw new Exception("doDet value of " + lineNumber + " Dono is " + doDet.getDoNo() + " already registered");
+            }
+            doTransferDet = modelMapper.map(doDet,
+                    new TypeToken<DoTransferDet>() {
+                    }.getType());
+
+            status = transferDetService.checkDoTransferDetPk(salesOrderMain.getName(), lineNumber);
+            if (status.equals("1")) {
+                LoggerConfig.logger.info("doTransferDet value of " + lineNumber + " Dono is " + doTransferDet.getDoNo());
+                transferDetService.setDoTransferDetDetails(doTransferDet);
+            } else {
+                LoggerConfig.logger.warn("doTransferDet value of " + lineNumber + " Dono is " + doTransferDet.getDoNo() + " already registered");
+                //throw new Exception("doTransferDet value of " + lineNumber + " Dono is " + doTransferDet.getDoNo() + " already registered");
+
+            }
+
+            //save dodet remarks
+            doDetRemarks.setCrAt(createdAt);
+            doDetRemarks.setCrBy(createdBy);
+            doDetRemarks.setDoLineNo(doDet.getDoLineNo());
+            doDetRemarks.setDoNo(doDet.getDoNo());
+            doDetRemarks.setItem(doDet.getItem());
+            doDetRemarks.setRemarks("");
+            doDetRemarks.setIdRemarks(0);
+            status = doDetRemarksService.checkDoDetRemarksPk(salesOrderMain.getName(), lineNumber, lineItems.get(i).getSku());
+
+            if (status.equals("1")) {
+                LoggerConfig.logger.info("doDetRemarks value of " + lineNumber + " Dono is " + doDetRemarks.getDoNo());
+                doDetRemarksService.setDoDetRemarksDetails(doDetRemarks);
+            } else {
+                LoggerConfig.logger.warn("doDetRemarks value of " + lineNumber + " Dono is " + doDetRemarks.getDoNo() + " already registered");
+                //throw new Exception("value already set");
+            }
+            //Default value for itemmst
+            itemMst.setCost(0);
+            itemMst.setDiscount(0);
+            itemMst.setItemType("NOTYPE");
+            itemMst.setProductBrandId("NOBRAND");
+            itemMst.setStackUom(UOM);
+            itemMst.setProductClassId("NOCLASSIFICATION");
+            itemMst.setItemType("NOTYPE");
+            itemMst.setIsActive("Y");
+            itemMst.setMinsPrice(0);
+            itemMst.setProductGst(0);
+            //itemMst.setDiscount(0);
+            itemMst.setNetWeight(0);
+            itemMst.setGrossWeight(0);
+            itemMst.setCrAt(createdAt);
+            itemMst.setCrBy(createdBy);
+            itemMst.setUserFieldOne("N");
+            itemMst.setStackQuantity(0);
+            itemMst.setMaximumStackQuantity(0);
+            //v2
+            itemMst.setIsBasicUom(1);
+            itemMst.setPurchaseUom(UOM);
+            itemMst.setSalesUom(UOM);
+            itemMst.setInventoryUom(UOM);
+
+            //itemMst save
+            status = itemMstService.checkItemMstPk(lineItems.get(i).getSku());
+            if (status.equals("1")) {
+                itemMstService.setItemMstDetails(itemMst);
+                LoggerConfig.logger.info("itemMst value of " + lineNumber + " sku is " + itemMst.getItem());
+
+                //activity log for itemMst save by Navas
+                ActivityLog logItemMstSave = new ActivityLog();
+                logItemMstSave.setPlant(plant);
+                logItemMstSave.setDirType("CREATE_PRODUCT");
+                logItemMstSave.setTransactionDate(dateTimeCalc.getTodayDateTime().split(" ")[0]);
+                logItemMstSave.setItem(itemMst.getItem());
+                logItemMstSave.setCrAt(createdAt);
+                logItemMstSave.setCrBy(createdBy);
+                activityLogService.setActivityLogDetails(logItemMstSave);
+            } else {
+                LoggerConfig.logger.warn("itemMst value of " + lineNumber + " sku is " + itemMst.getItem() + " already registered");
+            }
+
+            alternateItemMapping = modelMapper.map(itemMst,
+                    new TypeToken<AlternateItemMapping>() {
+                    }.getType());
+            //save alternate item
+            alternateItemMapping.setAlternateItemName(lineItems.get(i).getSku());
+            status = alternateItemMappingService.checkAlternateItemMappingPk(lineItems.get(i).getSku());
+            if (status.equals("1")) {
+                alternateItemMappingService.setAlternateItemMappingDetails(alternateItemMapping);
+            }
+
+            shopifyItem.setProductId(String.valueOf(lineItems.get(i).getProductId()));
+            shopifyItem.setSku(lineItems.get(i).getSku());
+            shopifyItem.setVariantId(String.valueOf(lineItems.get(i).getVariantId()));
+
+            //shopifyItem save
+            //ShopifyItem shopifyItemTmp = shopifyItemService.getAllShopifyItemPk(plant, lineItems.get(i).getSku());
+            status = shopifyItemService.checkShopifyItemPk(plant, lineItems.get(i).getSku());
+            if (status.equals("1")) {
+                ShopifyConfig spyConfig = shopifyConfigService.getAllFromPlant(plant);
+
+                String authorize = salesOrderService.getCryptoValue(spyConfig.getApiKey() + ":" + spyConfig.getApiPassword(), 1);
+                String inventoryId = salesOrderService.getInventoryIdFromShopifyUrl(authorize
+                        , spyConfig.getDomainName(), shopifyItem.getVariantId());
+                shopifyItem.setInventoryId(inventoryId);
+                shopifyItem.setCrAt(createdAt);
+                shopifyItem.setCrBy(createdBy);
+                LoggerConfig.logger.info("shopifyItem value of " + lineNumber + " sku is " + shopifyItem.getSku());
+                shopifyItemService.setShopifyItemDetails(shopifyItem);
+                //activity log for shopify  item save
+                ActivityLog logShopifyItemSave = new ActivityLog();
+                logShopifyItemSave.setPlant(plant);
+                logShopifyItemSave.setDirType("CREATE_SHOPIFY_PRODUCT");
+                logShopifyItemSave.setItem(itemMst.getItem());
+                logShopifyItemSave.setQty(0.00);
+                logShopifyItemSave.setTransactionDate(dateTimeCalc.getTodayDateTime().split(" ")[0]);
+                logShopifyItemSave.setCrAt(createdAt);
+                logShopifyItemSave.setCrBy(createdBy);
+                activityLogService.setActivityLogDetails(logShopifyItemSave);
+            } else {
+                //need to update no need
+                //shopifyItemTmp.setUpAt(createdAt);
+                //shopifyItemTmp.setUpBy(createdBy);
+                LoggerConfig.logger.info("shopifyItem value of " + lineNumber + " sku is " + shopifyItem.getSku() + " already registered");
+                //shopifyItemService.setShopifyItemDetails(shopifyItemTmp);
+                //throw new Exception("shopifyItem value already set");
+            }
+
+        }
+        LoggerConfig.logger.info("sales-order create post closed");
+        LoggerConfig.logger.info("Time diff " + (System.currentTimeMillis() - start));
+        return new ResponseEntity<>("", HttpStatus.OK);
+    }
+
+    @RequestMapping(value = "/sales-order/update-v1", method = RequestMethod.POST)
+    public ResponseEntity<?> updateSalesOrderVersionOne(HttpServletRequest request
+            , @RequestBody String salesOrder) throws Exception {
+        String shopDomain;
+        if (!testing) {
+            shopDomain = request.getHeader("X-Shopify-Shop-Domain");
+        } else {
+            shopDomain = "uclo-test.myshopify.com";
+        }
+        LoggerConfig.logger.info("Sales-order update post started");
+        long start = System.currentTimeMillis();
+
+        ObjectMapper objectMapper = new ObjectMapper();
+        SalesOrderMain salesOrderMain;
+        //static
+        String UOM = "PCS";
+        try {
+            salesOrderMain = objectMapper.readValue(salesOrder, SalesOrderMain.class);
+            LoggerConfig.logger.info("Sales-order update body param matched " + salesOrder);
+        } catch (Exception e) {
+            LoggerConfig.logger.info("Sales-order update body param not matched " + salesOrder);
+            LoggerConfig.logger.error("Sales-order update " + e.getMessage());
+            LoggerConfig.logger.info("Sales-order update time diff - " + (System.currentTimeMillis() - start));
+            //throw new Exception(e.getMessage());
+            return new ResponseEntity<>("", HttpStatus.OK);
+        }
+        String plant = shopifyConfigService.getPlantFromDomainName(shopDomain);
+        plant = claimsSet.getClaimsDetailsAfterSetWtAuth(plant);
+
+        String customerName = salesOrderMain.getCustomer().getFirstName() +
+                salesOrderMain.getCustomer().getLastName();
+
+        DateTimeCalc dateTimeCalc = new DateTimeCalc();
+        String[] collectionDateTime = dateTimeCalc
+                .dateTimeFormat(salesOrderMain.getCreatedAt()).split(" ");
+        String[] collectionUcloDateTime = dateTimeCalc
+                .ucloDateTimeFormatTwo(salesOrderMain.getCreatedAt()).split(" ");
+        String createdAt = dateTimeCalc.getUcloTodayDateTime();
+        String createdBy = "API_Shopify";
+        String status;
+
+
+        String doNo = salesOrderMain.getName();
+        // update the dodet for any changes
+        status = doHdrService.checkDoHdrPk(salesOrderMain.getName());
+        if (status.equals("1")) {
+            LoggerConfig.logger.info("Sales-order update doHdr value not there");
+            LoggerConfig.logger.info("Sales-order update time diff - " + (System.currentTimeMillis() - start));
+            return new ResponseEntity<>("", HttpStatus.OK);
+        }
+        DoHdr doHdrMain = doHdrService.getDoHdrPk(doNo);
+        DoTransferHdr doTransferHdr;
+        //activity log api call
+        ActivityLog logApiCallHdr = new ActivityLog();
+        logApiCallHdr.setPlant(plant);
+        logApiCallHdr.setDirType("UPDATE_SALES_ORDER");
+        logApiCallHdr.setOrdNum(salesOrderMain.getName());
+        logApiCallHdr.setQty(0.00);
+        logApiCallHdr.setTransactionDate(dateTimeCalc.getTodayDateTime().split(" ")[0]);
+        logApiCallHdr.setRemarks(customerName);
+        logApiCallHdr.setCrAt(createdAt);
+        logApiCallHdr.setCrBy(createdBy);
+        activityLogService.setActivityLogDetails(logApiCallHdr);
+
+        boolean reOrderFlag = false;
+
+        //List<RefundItem> refundItemList = getRefundLineItems(salesOrderMain.getRefunds());
+        List<DoDet> addedLineItems = doDetService.getAllDoDetPkOrderByLn(doNo);
+        List<LineItems> updatedLineItems = salesOrderMain.getLineItems();
+        int addedLineItemsCount = addedLineItems.size();
+        int addedLineItemMatchCount = 0;
+
+        //mapper
+        ModelMapper modelMapper = new ModelMapper();
+        modelMapper.getConfiguration().setAmbiguityIgnored(true);
+        for (int i = 0; i < updatedLineItems.size(); i++) {
+            DoDet doDet = new DoDet();
+            DoTransferDet doTransferDet;
+            AlternateItemMapping alternateItemMapping;
+            //check the line item already removed
+            if (updatedLineItems.get(i).getFulfillableQuantity() == 0
+                    && !updatedLineItems.get(i).getSku().equals(addedLineItems.get(i - addedLineItemMatchCount).getItem())) {
+                addedLineItemMatchCount++;
+                continue;
+            }
+//          1. Check if the line exists.
+            if (i < addedLineItemsCount + addedLineItemMatchCount) {
+                LoggerConfig.logger.info("line exists");
+                long fulfilledQuantity = updatedLineItems.get(i).getFulfillableQuantity();
+                long addedQuantity = (long) addedLineItems.get(i - addedLineItemMatchCount).getQuantityOr();
+                long refundQuantity = addedQuantity - fulfilledQuantity;
+                doDet = addedLineItems.get(i - addedLineItemMatchCount);
+                if (fulfilledQuantity != 0) {
+                    if (refundQuantity != 0) {
+                        //activity log api call
+                        ActivityLog logApiCall = new ActivityLog();
+                        logApiCall.setPlant(plant);
+                        logApiCall.setDirType("SALES_ORDER_UPDATE_PRODUCT");
+                        logApiCall.setOrdNum(salesOrderMain.getName());
+                        logApiCall.setItem(doDet.getItem());
+                        logApiCall.setQty((double) fulfilledQuantity);
+                        logApiCall.setTransactionDate(dateTimeCalc.getTodayDateTime().split(" ")[0]);
+                        logApiCall.setCrAt(createdAt);
+                        logApiCall.setCrBy(createdBy);
+                        logApiCall.setRemarks("Line Number : " + doDet.getDoLineNo() + " , Unit Price : " + doDet.getUnitPrice());
+                        activityLogService.setActivityLogDetails(logApiCall);
+                    }
+
+                    if (fulfilledQuantity > addedQuantity) {
+                        LoggerConfig.logger.info("Add the quantity " + (fulfilledQuantity - addedQuantity));
+                        doDet.setQuantityOr(fulfilledQuantity);
+                        if (!doDet.getPickStatus().equals("N")) {
+                            doDet.setPickStatus("O");
+                            doDet.setLineStatus("O");
+                            doHdrMain.setStatus("O");
+                            doHdrMain.setPickStatus("O");
+                            doHdrMain.setOrderStatus("PARTIALLY PROCESSED");
+                        }
+                        doDetService.setDoDetDetails(doDet);
+                        //dotransferdet set
+                        doTransferDet = modelMapper.map(doDet,
+                                new TypeToken<DoTransferDet>() {
+                                }.getType());
+                        transferDetService.setDoTransferDetDetails(doTransferDet);
+                        List<ShipHis> shipHisList = shipHisService.getShipHisPk1OrderByStatus(doDet.getDoNo(), String.valueOf(doDet.getDoLineNo()));
+                        if (shipHisList.size() != 0) {
+                            for (ShipHis shipHis : shipHisList) {
+                                shipHis.setOrderQuantity((float) fulfilledQuantity);
+                            }
+                            shipHisService.setAllShipHisDetails(shipHisList);
+                        }
+
+                        //activity log set
+                        // update all
+                    } else if (refundQuantity > 0) {
+                        LoggerConfig.logger.info("Sales-order update refund the quantity " + refundQuantity);
+                        if (doDet.getPickStatus().equals("N") && doDet.getLineStatus().equals("N")) {
+                            LoggerConfig.logger.info("Sales-order update no picked");
+                            doDet.setQuantityOr(fulfilledQuantity);
+                            doDetService.setDoDetDetails(doDet);
+                            doTransferDet = modelMapper.map(doDet,
+                                    new TypeToken<DoTransferDet>() {
+                                    }.getType());
+                            transferDetService.setDoTransferDetDetails(doTransferDet);
+
+                            //activity log set
+                            // update all
+                        } else if (doDet.getPickStatus().equals("C") && doDet.getLineStatus().equals("C")) {
+                            LoggerConfig.logger.info("Sales-order update fully picked and issued");
+                            //check the item is nonStock
+                            Boolean nonStock = itemMstService.checkItemMstNonStock(doDet.getItem());
+                            LoggerConfig.logger.info("Sales-order cancel for item " + doDet.getItem() + " ,its nonStock is " + nonStock);
+                            doDet = reversingProcess(doDet, addedQuantity, refundQuantity, nonStock);
+//                            changeQuantity = refundQuantity;
+//                            List<ShipHis> shipHisList = shipHisService.getShipHisPk1(doNo, String.valueOf(i + 1));
+//                            for (ShipHis shipHis : shipHisList) {
+//                                if (changeQuantity >= shipHis.getPickQuantity()) {
+//                                    changeQuantity = (int) (changeQuantity - shipHis.getPickQuantity());
+//                                    //ship his del
+//                                    if (!testing) {
+//                                        shipHisService.delShipmentHisPk(shipHis.getBeanId());
+//                                    } else {
+//                                        shipHis.setStatus("D");
+//                                        shipHisService.setShipHisDetails(shipHis);
+//                                    }
+//                                    InvMst invMst = invMstService.getInvMstPk2(shipHis.getId());
+//                                    invMst.setQuantity(invMst.getQuantity() + shipHis.getPickQuantity());
+//                                    // inv mst update
+//                                    invMstService.setInvMstDetails(invMst);
+//                                } else {
+//                                    shipHis.setOrderQuantity(shipHis.getOrderQuantity() - changeQuantity);
+//                                    shipHis.setPickQuantity(shipHis.getPickQuantity() - changeQuantity);
+//                                    //ship his update
+//                                    shipHisService.setShipHisDetails(shipHis);
+//                                    InvMst invMst = invMstService.getInvMstPk2(shipHis.getId());
+//                                    invMst.setQuantity(invMst.getQuantity() + changeQuantity);
+//                                    // invmst update
+//                                    invMstService.setInvMstDetails(invMst);
+//                                    break;
+//                                }
+//                            }
+                            doDet.setQuantityOr(fulfilledQuantity);
+                            //doDet.setQuantityPick(doDet.getQuantityPick() - refundQuantity);
+                            //doDet.setQuantityIs(doDet.getQuantityIs() - refundQuantity);
+                            //doDet.setPickStatus("C");
+                            //doDet.setLineStatus("C");
+                            doDetService.setDoDetDetails(doDet);
+                            //dotransferdet set
+                            doTransferDet = modelMapper.map(doDet,
+                                    new TypeToken<DoTransferDet>() {
+                                    }.getType());
+                            transferDetService.setDoTransferDetDetails(doTransferDet);
+
+//                            doHdrMain.setStatus("C");
+//                            doHdrMain.setPickStatus("C");
+//                            doHdrMain.setOrderStatus("PROCESSED");
+                            //activity log set
+                            // update all
+                        } else {
+                            LoggerConfig.logger.info("Sales-order update partially picked & Issued");
+                            // remove nonused quantity
+                            //check the item is nonStock
+                            Boolean nonStock = itemMstService.checkItemMstNonStock(doDet.getItem());
+                            LoggerConfig.logger.info("Sales-order cancel for item " + doDet.getItem() + " ,its nonStock is " + nonStock);
+                            doDet = reversingProcess(doDet, addedQuantity, refundQuantity, nonStock);
+
+//                            long nonUsedQuantity;
+//                            if (addedQuantity > doDet.getQuantityPick()) {
+//                                nonUsedQuantity = (long) (addedQuantity - doDet.getQuantityPick());
+//                                changeQuantity = refundQuantity - nonUsedQuantity;
+//                                LoggerConfig.logger.info("NonUsedQuantity is " + nonUsedQuantity);
+//                            } else {
+//                                changeQuantity = refundQuantity;
+//                            }
+//                            if (changeQuantity > 0) {
+//                                doDet.setQuantityPick(doDet.getQuantityPick() - changeQuantity);
+//                                LoggerConfig.logger.info("Remove quantity from shiphis " + changeQuantity);
+//
+//
+//
+//                                List<ShipHis> shipHisList = shipHisService.getShipHisPk1OrderByStatus(doNo, String.valueOf(i + 1));
+//                                for (ShipHis shipHis : shipHisList) {
+//                                    //remove the quantity from ship his depend on priority
+//                                    if (changeQuantity >= shipHis.getPickQuantity()) {
+//                                        changeQuantity = (int) (changeQuantity - shipHis.getPickQuantity());
+//                                        if (shipHis.getStatus().equals("C")) {
+//                                            doDet.setQuantityIs(doDet.getQuantityIs() - shipHis.getPickQuantity());
+//                                        } else if (shipHis.getStatus().equals("O")) {
+//                                            InvMst invMstShipment = invMstService.getInvMstPk2(shipHis.getSid());
+//                                            if (invMstShipment.getQuantity() - shipHis.getPickQuantity() == 0) {
+//                                                if (!testing) {
+//                                                    invMstService.delInvMstPk2(shipHis.getSid());
+//                                                } else {
+//                                                    invMstShipment.setStatus("D");
+//                                                    invMstService.setInvMstDetails(invMstShipment);
+//                                                }
+//                                            } else {
+//                                                invMstShipment.setQuantity(invMstShipment.getQuantity() - shipHis.getPickQuantity());
+//                                                invMstService.setInvMstDetails(invMstShipment);
+//                                            }
+//
+//                                        }
+//                                        LoggerConfig.logger.info("del from shiphis and add to invmst qua " + shipHis.getPickQuantity());
+//                                        //ship his del
+//                                        if (!testing) {
+//                                            shipHisService.delShipmentHisPk(shipHis.getBeanId());
+//                                        } else {
+//                                            shipHis.setStatus("D");
+//                                            shipHisService.setShipHisDetails(shipHis);
+//                                        }
+//                                        InvMst invMst = invMstService.getInvMstPk2(shipHis.getId());
+//                                        invMst.setQuantity(invMst.getQuantity() + shipHis.getPickQuantity());
+//                                        // inv mst update
+//                                        invMstService.setInvMstDetails(invMst);
+//                                        if (changeQuantity <= 0)
+//                                            break;
+//                                    } else {
+//                                        shipHis.setOrderQuantity(shipHis.getOrderQuantity() - changeQuantity);
+//                                        shipHis.setPickQuantity(shipHis.getPickQuantity() - changeQuantity);
+//                                        if (shipHis.getStatus().equals("C")) {
+//                                            doDet.setQuantityIs(doDet.getQuantityIs() - changeQuantity);
+//                                        } else if (shipHis.getStatus().equals("O")) {
+//                                            InvMst invMstShipment = invMstService.getInvMstPk2(shipHis.getSid());
+//                                            invMstShipment.setQuantity(invMstShipment.getQuantity() - changeQuantity);
+//                                            invMstService.setInvMstDetails(invMstShipment);
+//                                        }
+//                                        LoggerConfig.logger.info("upd to shiphis invmst qua " + changeQuantity);
+//                                        //ship his update
+//                                        shipHisService.setShipHisDetails(shipHis);
+//                                        InvMst invMst = invMstService.getInvMstPk2(shipHis.getId());
+//                                        invMst.setQuantity(invMst.getQuantity() + changeQuantity);
+//                                        // invmst update
+//                                        invMstService.setInvMstDetails(invMst);
+//                                        break;
+//                                    }
+//                                }
+//                            }
+                            doDet.setQuantityOr(fulfilledQuantity);
+                            // set pick status
+                            if (doDet.getQuantityOr() == doDet.getQuantityPick()) {
+                                doDet.setPickStatus("C");
+                            } else {
+                                doDet.setPickStatus("O");
+                                doHdrMain.setPickStatus("O");
+                                doHdrMain.setOrderStatus("PARTIALLY PROCESSED");
+                            }
+                            // set line status
+                            if (doDet.getQuantityPick() == doDet.getQuantityIs()) {
+                                doDet.setLineStatus("C");
+                            } else if (doDet.getQuantityIs() == 0) {
+                                doDet.setLineStatus("N");
+                                doHdrMain.setStatus("N");
+                                doHdrMain.setOrderStatus("PARTIALLY PROCESSED");
+                            } else {
+                                doDet.setLineStatus("O");
+                                doHdrMain.setStatus("O");
+                                doHdrMain.setOrderStatus("PARTIALLY PROCESSED");
+                            }
+                            // set hdr status
+                            if (i == 0 && doDet.getQuantityOr() == doDet.getQuantityPick()
+                                    && doDet.getQuantityOr() == doDet.getQuantityIs()) {
+                                doHdrMain.setStatus("C");
+                                doHdrMain.setPickStatus("C");
+                                doHdrMain.setOrderStatus("PROCESSED");
+                            }
+//
+//                            if (doDet.getQuantityOr() == doDet.getQuantityPick()
+//                                    && doDet.getQuantityOr() == doDet.getQuantityIs()) {
+//                                doDet.setPickStatus("C");
+//                                doDet.setLineStatus("C");
+//                                if (i == 0) {
+//                                    doHdrMain.setStatus("C");
+//                                    doHdrMain.setPickStatus("C");
+//                                    doHdrMain.setOrderStatus("PROCESSED");
+//                                }
+//                            } else if (doDet.getQuantityOr() == doDet.getQuantityPick()) {
+//                                doDet.setPickStatus("C");
+//                                if(doDet.getQuantityIs() != 0)
+//                                    doDet.setLineStatus("O");
+//                                else
+//                                    doDet.setLineStatus("N");
+//                                if (i == 0) {
+//                                    doHdrMain.setPickStatus("C");
+//                                }
+//                                doHdrMain.setStatus("O");
+//                                doHdrMain.setOrderStatus("PARTIALLY PROCESSED");
+//                            } else {
+//                                doDet.setPickStatus("O");
+//                                doDet.setLineStatus("O");
+//                                doHdrMain.setStatus("O");
+//                                doHdrMain.setPickStatus("O");
+//                                doHdrMain.setOrderStatus("PARTIALLY PROCESSED");
+//                            }
+
+                            doDetService.setDoDetDetails(doDet);
+                            //dotransferdet set
+                            doTransferDet = modelMapper.map(doDet,
+                                    new TypeToken<DoTransferDet>() {
+                                    }.getType());
+                            transferDetService.setDoTransferDetDetails(doTransferDet);
+
+                            //activity log set
+                            // update all
+                        }
+                    } else {
+                        LoggerConfig.logger.info("Sales-order update no changes in line item");
+                    }
+                } else {
+                    //reOrderFlag = false;
+                    LoggerConfig.logger.info("Sales-order update close the item");
+                    //check the item is nonStock
+                    //check the item is nonStock
+                    Boolean nonStock = itemMstService.checkItemMstNonStock(doDet.getItem());
+                    LoggerConfig.logger.info("Sales-order cancel for item " + doDet.getItem() + " ,its nonStock is " + nonStock);
+                    doDet = reversingProcess(doDet, addedQuantity, refundQuantity, nonStock);
+                    doDet.setPickStatus("C");
+                    doDet.setLineStatus("C");
+                    //modify
+                    status = doDetService.checkDoDetPk(doNo, i + 1);
+                    if (!status.equals("1"))
+                        doDetService.setDoDetDetails(doDet);
+                    //doDetService.deleteDoDetPk(doNo,i+1);
+                    doTransferDet = modelMapper.map(doDet,
+                            new TypeToken<DoTransferDet>() {
+                            }.getType());
+                    status = transferDetService.checkDoTransferDetPk(doNo, i + 1);
+                    if (!status.equals("1"))
+                        transferDetService.setDoTransferDetDetails(doTransferDet);
+                }
+            } else {
+                LoggerConfig.logger.info("adding new item");
+                String currencyId = salesOrderMain.getCurrency();
+                String currencyUseQt = currencyService.getCurrencyDetailById(currencyId).getCurrencyUseQt();
+
+                doDet.setPlant(plant);
+                doDet.setTransactionDate(collectionDateTime[0]);
+                doDet.setCurrencySequence(Float.parseFloat(currencyUseQt));
+                doDet.setDoNo(salesOrderMain.getName());
+                doDet.setUserFieldThree(salesOrderMain.getCustomer().getFirstName()
+                        + salesOrderMain.getCustomer().getLastName());
+                DoDetRemarks doDetRemarks = new DoDetRemarks();
+                doDetRemarks.setPlant(plant);
+                ItemMst itemMst = new ItemMst();
+                itemMst.setPlant(plant);
+                ShopifyItem shopifyItem = new ShopifyItem();
+                shopifyItem.setPlant(plant);
+                // matching the line item due to del item is present in line item
+                int lineNumber = i + 1 - addedLineItemMatchCount;
+                doDet.setDoLineNo(lineNumber);
+                doDet.setUnitMo(String.valueOf(updatedLineItems.get(i).getGrams()));
+                doDet.setItemDescription(updatedLineItems.get(i).getName());
+                doDet.setUserFieldOne(updatedLineItems.get(i).getName());
+                itemMst.setItemDescription(updatedLineItems.get(i).getName());
+                doDet.setUnitPrice(Float.parseFloat(updatedLineItems.get(i).getPrice()));
+                itemMst.setUnitPrice(Float.parseFloat(updatedLineItems.get(i).getPrice()));
+                doDet.setQuantityOr(updatedLineItems.get(i).getQuantity());
+                doDet.setItem(updatedLineItems.get(i).getSku());
+                itemMst.setItem(updatedLineItems.get(i).getSku());
+                //repeated
+                if (updatedLineItems.get(i).getVariantInventoryManagement() == null)
+                    itemMst.setNonStackFlag("Y");
+                else
+                    itemMst.setNonStackFlag("N");
+                //Default value for dodet
+                doDet.setEstimateLineNo(0);
+                doDet.setPickStatus("N");
+                doDet.setLineStatus("N");
+                doDet.setQuantityIs(0);
+                doDet.setQuantityPick(0);
+                doDet.setUnitMo(UOM);
+                doDet.setCrAt(createdAt);
+                doDet.setCrBy(createdBy);
+                // v2
+                doDet.setAccountName("Local sales - retail");
+                // v4
+                doDet.setTaxType("STANDARD RATED [0.0%]");
+                //DoDet save
+                status = doDetService.checkDoDetPk(salesOrderMain.getName(), lineNumber);
+                if (status.equals("1")) {
+                    doDetService.setDoDetDetails(doDet);
+                    LoggerConfig.logger.info("doDet value of " + lineNumber + " Dono is " + doDet.getDoNo());
+                    //activity log for dodet save
+                    ActivityLog logDoDetSave = new ActivityLog();
+                    logDoDetSave.setPlant(plant);
+                    logDoDetSave.setDirType("SALES_ORDER_ADD_PRODUCT");
+                    logDoDetSave.setLnNo(String.valueOf(doDet.getDoLineNo()));
+                    logDoDetSave.setOrdNum(doDet.getDoNo());
+                    logDoDetSave.setTransactionDate(dateTimeCalc.getTodayDateTime().split(" ")[0]);
+                    logDoDetSave.setItem(doDet.getItem());
+                    logDoDetSave.setQty((double) doDet.getQuantityOr());
+                    logDoDetSave.setCrAt(createdAt);
+                    logDoDetSave.setCrBy(createdBy);
+                    activityLogService.setActivityLogDetails(logDoDetSave);
+                } else {
+                    LoggerConfig.logger.warn("doDet value of " + lineNumber + " Dono is " + doDet.getDoNo() + " already registered");
+                    //throw new Exception("doDet value of " + lineNumber + " Dono is " + doDet.getDoNo() + " already registered");
+                }
+                doTransferDet = modelMapper.map(doDet,
+                        new TypeToken<DoTransferDet>() {
+                        }.getType());
+
+                status = transferDetService.checkDoTransferDetPk(salesOrderMain.getName(), lineNumber);
+                if (status.equals("1")) {
+                    LoggerConfig.logger.info("doTransferDet value of " + lineNumber + " Dono is " + doTransferDet.getDoNo());
+                    transferDetService.setDoTransferDetDetails(doTransferDet);
+                } else {
+                    LoggerConfig.logger.warn("doTransferDet value of " + lineNumber + " Dono is " + doTransferDet.getDoNo() + " already registered");
+                    //throw new Exception("doTransferDet value of " + lineNumber + " Dono is " + doTransferDet.getDoNo() + " already registered");
+                }
+
+                //save dodet remarks
+                doDetRemarks.setCrAt(createdAt);
+                doDetRemarks.setCrBy(createdBy);
+                doDetRemarks.setDoLineNo(doDet.getDoLineNo());
+                doDetRemarks.setDoNo(doDet.getDoNo());
+                doDetRemarks.setItem(doDet.getItem());
+                doDetRemarks.setRemarks("");
+                doDetRemarks.setIdRemarks(0);
+                status = doDetRemarksService.checkDoDetRemarksPk(salesOrderMain.getName(), lineNumber, updatedLineItems.get(i).getSku());
+
+                if (status.equals("1")) {
+                    LoggerConfig.logger.info("doDetRemarks value of " + lineNumber + " Dono is " + doDetRemarks.getDoNo());
+                    doDetRemarksService.setDoDetRemarksDetails(doDetRemarks);
+                } else {
+                    LoggerConfig.logger.warn("doDetRemarks value of " + lineNumber + " Dono is " + doDetRemarks.getDoNo() + " already registered");
+                    //throw new Exception("value already set");
+                }
+                //Default value for itemmst
+                itemMst.setCost(0);
+                itemMst.setDiscount(0);
+                itemMst.setItemType("NOTYPE");
+                itemMst.setProductBrandId("NOBRAND");
+                itemMst.setStackUom(UOM);
+                itemMst.setProductClassId("NOCLASSIFICATION");
+                itemMst.setItemType("NOTYPE");
+                itemMst.setIsActive("Y");
+                itemMst.setMinsPrice(0);
+                itemMst.setProductGst(0);
+                //itemMst.setDiscount(0);
+                itemMst.setNetWeight(0);
+                itemMst.setGrossWeight(0);
+                itemMst.setCrAt(createdAt);
+                itemMst.setCrBy(createdBy);
+                itemMst.setUserFieldOne("N");
+                itemMst.setStackQuantity(0);
+                itemMst.setMaximumStackQuantity(0);
+                //v2
+                itemMst.setIsBasicUom(1);
+                itemMst.setPurchaseUom(UOM);
+                itemMst.setSalesUom(UOM);
+                itemMst.setInventoryUom(UOM);
+
+                //itemMst save
+                status = itemMstService.checkItemMstPk(updatedLineItems.get(i).getSku());
+                if (status.equals("1")) {
+                    itemMstService.setItemMstDetails(itemMst);
+                    LoggerConfig.logger.info("itemMst value of " + lineNumber + " sku is " + itemMst.getItem());
+
+                    //activity log for itemMst save by Navas
+                    ActivityLog logItemMstSave = new ActivityLog();
+                    logItemMstSave.setPlant(plant);
+                    logItemMstSave.setDirType("CREATE_PRODUCT");
+                    logItemMstSave.setTransactionDate(dateTimeCalc.getTodayDateTime().split(" ")[0]);
+                    logItemMstSave.setItem(itemMst.getItem());
+                    logItemMstSave.setCrAt(createdAt);
+                    logItemMstSave.setCrBy(createdBy);
+                    activityLogService.setActivityLogDetails(logItemMstSave);
+                } else {
+                    LoggerConfig.logger.warn("itemMst value of " + lineNumber + " sku is " + itemMst.getItem() + " already registered");
+                }
+
+                alternateItemMapping = modelMapper.map(itemMst,
+                        new TypeToken<AlternateItemMapping>() {
+                        }.getType());
+                //save alternate item
+                alternateItemMapping.setAlternateItemName(updatedLineItems.get(i).getSku());
+                status = alternateItemMappingService.checkAlternateItemMappingPk(updatedLineItems.get(i).getSku());
+                if (status.equals("1")) {
+                    alternateItemMappingService.setAlternateItemMappingDetails(alternateItemMapping);
+                }
+
+                shopifyItem.setProductId(String.valueOf(updatedLineItems.get(i).getProductId()));
+                shopifyItem.setSku(updatedLineItems.get(i).getSku());
+                shopifyItem.setVariantId(String.valueOf(updatedLineItems.get(i).getVariantId()));
+
+                //shopifyItem save
+                //ShopifyItem shopifyItemTmp = shopifyItemService.getAllShopifyItemPk(plant, lineItems.get(i).getSku());
+                status = shopifyItemService.checkShopifyItemPk(plant, updatedLineItems.get(i).getSku());
+                if (status.equals("1")) {
+                    ShopifyConfig spyConfig = shopifyConfigService.getAllFromPlant(plant);
+
+                    String authorize = salesOrderService.getCryptoValue(spyConfig.getApiKey() + ":" + spyConfig.getApiPassword(), 1);
+                    String inventoryId = salesOrderService.getInventoryIdFromShopifyUrl(authorize
+                            , spyConfig.getDomainName(), shopifyItem.getVariantId());
+                    shopifyItem.setInventoryId(inventoryId);
+                    shopifyItem.setCrAt(createdAt);
+                    shopifyItem.setCrBy(createdBy);
+                    LoggerConfig.logger.info("shopifyItem value of " + lineNumber + " sku is " + shopifyItem.getSku());
+                    shopifyItemService.setShopifyItemDetails(shopifyItem);
+                    //activity log shopify item save
+                    ActivityLog logShopifyItemSave = new ActivityLog();
+                    logShopifyItemSave.setPlant(plant);
+                    logShopifyItemSave.setDirType("CREATE_SHOPIFY_PRODUCT");
+                    logShopifyItemSave.setItem(itemMst.getItem());
+                    logShopifyItemSave.setQty(0.00);
+                    logShopifyItemSave.setTransactionDate(dateTimeCalc.getTodayDateTime().split(" ")[0]);
+                    logShopifyItemSave.setCrAt(createdAt);
+                    logShopifyItemSave.setCrBy(createdBy);
+                    activityLogService.setActivityLogDetails(logShopifyItemSave);
+                } else {
+                    LoggerConfig.logger.info("shopifyItem value of " + lineNumber + " sku is " + shopifyItem.getSku() + " already registered");
+                }
+            }
+        }
+        //re-order the line items in dodet and set the pick status to doHdr,dodet
+        if (reOrderFlag) {
+            status = doDetService.checkDoDetPk1(doNo);
+            if (!status.equals("1")) {
+                LoggerConfig.logger.info("Re-ording the item,status in doDet");
+                List<DoDet> modifiedLineItems = doDetService.getAllDoDetPkOrderByLn(doNo);
+                int lineItem = 1;
+                String setPickStatus = "N";
+                String setLineStatus = "N";
+                String setOrderStatus = "OPEN";
+                for (DoDet modifiedItem : modifiedLineItems) {
+                    modifiedItem.setDoLineNo(lineItem);
+                    if (modifiedItem.getQuantityOr() != 0) {
+                        if (modifiedItem.getQuantityOr() == modifiedItem.getQuantityPick()
+                                && modifiedItem.getQuantityOr() == modifiedItem.getQuantityIs()) {
+                            modifiedItem.setPickStatus("C");
+                            modifiedItem.setLineStatus("C");
+                            if (lineItem == 1 || setOrderStatus.equals("OPEN")) {
+                                setOrderStatus = "PROCESSED";
+                                setLineStatus = "C";
+                                setPickStatus = "C";
+                            }
+                        } else if (modifiedItem.getQuantityOr() == modifiedItem.getQuantityPick()) {
+                            modifiedItem.setPickStatus("C");
+                            if (modifiedItem.getQuantityIs() == 0)
+                                modifiedItem.setLineStatus("N");
+                            else
+                                modifiedItem.setLineStatus("O");
+                            if (lineItem == 1 || setOrderStatus.equals("OPEN")) {
+                                setOrderStatus = "PROCESSED";
+                                setLineStatus = "O";
+                                setPickStatus = "C";
+                            }
+                        } else if (modifiedItem.getQuantityPick() > 0) {
+                            modifiedItem.setPickStatus("O");
+                            if (modifiedItem.getQuantityIs() == 0)
+                                modifiedItem.setLineStatus("N");
+                            else
+                                modifiedItem.setLineStatus("O");
+                            setOrderStatus = "PARTIALLY PROCESSED";
+                            setLineStatus = "O";
+                            setPickStatus = "O";
+                        } else {
+                            modifiedItem.setPickStatus("N");
+                            modifiedItem.setLineStatus("N");
+                        }
+                        lineItem++;
+                    } else {
+                        setOrderStatus = "FORCE CLOSE";
+                        setLineStatus = "C";
+                        setPickStatus = "C";
+                    }
+                }
+                // save all modifiedLineItems
+                doDetService.setAllDoDetDetails(modifiedLineItems);
+                //dotransferdet set
+                List<DoTransferDet> doTransferDetList = modelMapper.map(modifiedLineItems,
+                        new TypeToken<List<DoTransferDet>>() {
+                        }.getType());
+                transferDetService.setAllDoTransferDetDetails(doTransferDetList);
+                doHdrMain.setPickStatus(setPickStatus);
+                doHdrMain.setStatus(setLineStatus);
+                doHdrMain.setOrderStatus(setOrderStatus);
+            } else {
+                doHdrMain.setPickStatus("C");
+                doHdrMain.setStatus("C");
+                doHdrMain.setOrderStatus("FORCE CLOSE");
+            }
+
+        }
+        doHdrService.setDoHdrDetails(doHdrMain);
+        doTransferHdr = modelMapper.map(doHdrMain,
+                new TypeToken<DoTransferHdr>() {
+                }.getType());
+        transferHdrService.setDoTransferHdrDetails(doTransferHdr);
+        LoggerConfig.logger.info("Sales-order update post closed");
+        LoggerConfig.logger.info("Sales-order update time diff - " + (System.currentTimeMillis() - start));
+        return new ResponseEntity<>("", HttpStatus.OK);
+    }

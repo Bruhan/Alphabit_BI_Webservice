@@ -8,12 +8,12 @@
 		<version>2.4.1</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
-	<groupId>com.facility</groupId>
-	<artifactId>management</artifactId>
+	<groupId>com.owner</groupId>
+	<artifactId>process</artifactId>
 	<version>1.0.0</version>
 	<packaging>war</packaging>
-	<name>Project_Management_Web_Service</name>
-	<description>Project management app service</description>
+	<name>Owner_Web_Service</name>
+	<description>Owner app service</description>
 	<properties>
 		<java.version>1.8</java.version>
 		<maven.test.skip>true</maven.test.skip>
@@ -105,11 +105,9 @@
 		</dependency>
        <!-- <dependency>
             <groupId>com.google.firebase</groupId>
-            <artifactId>firebase-messaging</artifactId>
-            <version>23.0.0</version>
+            <artifactId>firebase-messaging</artifactId>goo
+            <version>23.0.0</version>googooo
         </dependency>-->
-
-
 	</dependencies>
 
 	<build>
@@ -127,6 +125,7 @@
 				</configuration>
 			</plugin>
 		</plugins>
-		<finalName>projectmanagement-0.0.1</finalName>
+		<finalName>owner-0.0.1</finalName>
 	</build>
+
 </project>

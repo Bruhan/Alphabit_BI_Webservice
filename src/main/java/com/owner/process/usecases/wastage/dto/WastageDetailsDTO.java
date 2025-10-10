@@ -1,0 +1,17 @@
+package com.owner.process.usecases.wastage.dto;
+
+import lombok.Getter;
+import lombok.Setter;
+
+@Getter
+@Setter
+public class WastageDetailsDTO {
+    private String plant;
+    private int id;
+    private String totalWastageType;
+    private double totalWastageQty;
+    private String totalWastageUOM;
+    private String projectNo;
+    private double processedQty;
+    private double pendingQty;
+}
