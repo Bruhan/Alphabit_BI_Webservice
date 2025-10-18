@@ -26,13 +26,17 @@ public class VisitorsDashboardController {
     VisitorsDashboardService visitorsDashboardService;
 
     @GetMapping("/visitors/getVisitors")
-    public ResponseEntity<?> getVisitors(HttpServletRequest request, @RequestParam String plant) {
+    public ResponseEntity<?> getVisitors(HttpServletRequest request,
+                                         @RequestParam String plant,
+                                         @RequestParam(required = false) String visitorType,
+                                         @RequestParam(required = false) String fromDate,
+                                         @RequestParam(required = false) String toDate) {
 //        if(Objects.equals(plant, "C2443679950S2T")) {
 //            plant = "C2620614616S2T";
 //        }
         List<VisitorsDTO> visitorsDTOList = new ArrayList<VisitorsDTO>();
         try {
-            visitorsDTOList = visitorsDashboardService.getVisitors(plant);
+            visitorsDTOList = visitorsDashboardService.getVisitors(plant, visitorType, fromDate, toDate);
 
         }catch (Exception e){
             System.out.println("/visitors/getVisitors");

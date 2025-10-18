@@ -11,10 +11,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigInteger;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Date;
-import java.util.List;
+import java.text.SimpleDateFormat;
+import java.util.*;
 
 @Repository("VisitorsDashboardDao")
 public class VisitorsDashboardDaoImpl implements VisitorsDashboardDao{
@@ -23,17 +21,53 @@ public class VisitorsDashboardDaoImpl implements VisitorsDashboardDao{
     SessionFactory sessionFactory;
 
     @Override
-    public List<VisitorsDTO> getVisitors(String plant) {
+    public List<VisitorsDTO> getVisitors(String plant, String visitorType, String fromDate, String toDate) {
         Session session = sessionFactory.openSession();
         List<VisitorsDTO> visitorsDTOList = new ArrayList<>();
+
         try {
-            String sql = "SELECT TOTAL_VISITORS, VISITORS_TYPE, VISITED_TIME, OUTLET, CAMERA_NO, CONVERSION_RATE FROM " + plant + "_VISITORS_DET WHERE PLANT = :plant";
-            Query query = session.createSQLQuery(sql);
+            // Use current date as default if not provided
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+            sdf.setTimeZone(TimeZone.getTimeZone("Asia/Kolkata"));
+            String currentDate = sdf.format(new Date() );
+
+            if (fromDate == null || fromDate.trim().isEmpty()) {
+                fromDate = currentDate;
+            }
+            if (toDate == null || toDate.trim().isEmpty()) {
+                toDate = currentDate;
+            }
+
+            StringBuilder sql = new StringBuilder(
+                    "SELECT TOTAL_VISITORS, VISITORS_TYPE, VISITED_TIME, OUTLET, CAMERA_NO, CONVERSION_RATE, EMOTION, EMOTIONIMGPATH " +
+                            "FROM " + plant + "_VISITORS_DET WHERE PLANT = :plant"
+            );
+
+            // Add visitor type filter
+            if (visitorType != null && !visitorType.trim().isEmpty()) {
+                if (visitorType.equalsIgnoreCase("unknown")) {
+                    sql.append(" AND LOWER(VISITORS_TYPE) NOT IN ('male','female','children')");
+                } else {
+                    sql.append(" AND LOWER(VISITORS_TYPE) = LOWER(:visitorType)");
+                }
+            }
+
+            // Always add date filters (since defaults are guaranteed)
+            sql.append(" AND CAST(VISITED_TIME AS date) BETWEEN CAST(:fromDate AS date) AND CAST(:toDate AS date)");
+            sql.append(" ORDER BY VISITED_TIME DESC");
+
+            Query query = session.createSQLQuery(sql.toString());
             query.setParameter("plant", plant);
+            query.setParameter("fromDate", fromDate);
+            query.setParameter("toDate", toDate);
+
+            if (visitorType != null && !visitorType.trim().isEmpty() && !visitorType.equalsIgnoreCase("unknown")) {
+                query.setParameter("visitorType", visitorType.toLowerCase());
+            }
+
             List<Object[]> rows = query.list();
 
-
-            for(Object[] row: rows) {
+            for (Object[] row : rows) {
                 VisitorsDTO visitorsDTO = new VisitorsDTO();
                 visitorsDTO.setVisitorsCount(((BigInteger) row[0]).longValue());
                 visitorsDTO.setVisitorsType((String) row[1]);
@@ -41,28 +75,37 @@ public class VisitorsDashboardDaoImpl implements VisitorsDashboardDao{
                 visitorsDTO.setOutlet((String) row[3]);
                 visitorsDTO.setCameraNo((String) row[4]);
                 visitorsDTO.setConversionRate(((BigInteger) row[5]).longValue());
+                visitorsDTO.setEmotion((String) row[6]);
 
                 visitorsDTOList.add(visitorsDTO);
             }
+
         } catch (Exception ex) {
             throw new RuntimeException(ex);
+        } finally {
+            session.close();
         }
 
         return visitorsDTOList;
     }
+
+
 
     @Override
     public Integer saveVisitors(SaveVisitorsDTO saveVisitorsDTO) {
         Integer result = 0;
         Session session = sessionFactory.openSession();
         try {
-            String sql = "INSERT INTO " + saveVisitorsDTO.getPlant() + "_VISITORS_DET (PLANT, TOTAL_VISITORS, VISITORS_TYPE, CONVERSION_RATE, OUTLET, CAMERA_NO, CRAT, CRBY, UPAT) " +
-                    "VALUES (:plant, :totalVisitors, :visitorsType, :conversionRate, :outlet, :cameraNo, :crAt, :crBy, :upAt)";
+            String sql = "INSERT INTO " + saveVisitorsDTO.getPlant() + "_VISITORS_DET (PLANT, TOTAL_VISITORS, VISITORS_TYPE, EMOTION, EMOTIONIMGPATH, VISITED_TIME, CONVERSION_RATE, OUTLET, CAMERA_NO, CRAT, CRBY, UPAT) " +
+                    "VALUES (:plant, :totalVisitors, :visitorsType, :emotion, :emotionImgPath, :visitedTime, :conversionRate, :outlet, :cameraNo, :crAt, :crBy, :upAt)";
             session.beginTransaction();
             Query query = session.createSQLQuery(sql);
             query.setParameter("plant", saveVisitorsDTO.getPlant());
             query.setParameter("totalVisitors", saveVisitorsDTO.getVisitorsCount());
+            query.setParameter("visitedTime", saveVisitorsDTO.getVisitedTime());
             query.setParameter("visitorsType", saveVisitorsDTO.getVisitorsType());
+            query.setParameter("emotion", saveVisitorsDTO.getEmotion());
+            query.setParameter("emotionImgPath", saveVisitorsDTO.getEmotionImgPath());
             query.setParameter("conversionRate", saveVisitorsDTO.getConversionRate());
             query.setParameter("outlet", saveVisitorsDTO.getOutlet());
             query.setParameter("cameraNo", saveVisitorsDTO.getCameraNo());

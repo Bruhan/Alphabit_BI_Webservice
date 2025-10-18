@@ -15,6 +15,7 @@ public class VisitorsDTO {
     private Long visitorsCount;
     private String visitorsType;
     private Date visitedTime;
+    private String emotion;
     private String outlet;
     private String cameraNo;
     private Long conversionRate;

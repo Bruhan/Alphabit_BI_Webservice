@@ -6,7 +6,7 @@ import com.owner.process.usecases.visitors_dashboard.dto.VisitorsDTO;
 import java.util.List;
 
 public interface VisitorsDashboardDao {
-    List<VisitorsDTO> getVisitors(String plant);
+    List<VisitorsDTO> getVisitors(String plant, String visitorType, String fromDate, String toDate);
 
     Integer saveVisitors(SaveVisitorsDTO saveVisitorsDTO);
 }

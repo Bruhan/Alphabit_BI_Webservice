@@ -13,8 +13,8 @@ public class VisitorsDashboardService {
     @Autowired
     VisitorsDashboardDao visitorsDashboardDao;
 
-    public List<VisitorsDTO> getVisitors(String plant) {
-        return visitorsDashboardDao.getVisitors(plant);
+    public List<VisitorsDTO> getVisitors(String plant, String visitorType, String fromDate, String toDate) {
+        return visitorsDashboardDao.getVisitors(plant, visitorType, fromDate, toDate);
     }
 
     public Integer saveVisitors(SaveVisitorsDTO saveVisitorsDTO) {

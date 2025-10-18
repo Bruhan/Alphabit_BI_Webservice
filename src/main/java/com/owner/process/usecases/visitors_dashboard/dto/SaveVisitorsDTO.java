@@ -13,6 +13,8 @@ public class SaveVisitorsDTO {
     private String plant;
     private Long visitorsCount;
     private String visitorsType;
+    private String emotion;
+    private String emotionImgPath;
     private Date visitedTime;
     private String outlet;
     private String cameraNo;
